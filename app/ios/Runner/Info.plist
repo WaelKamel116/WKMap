@@ -32,6 +32,10 @@
 	<string>Cairo Nav keeps using your location with the screen off so a test drive is recorded without gaps.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>Cairo Nav reads the air-pressure sensor to tell a flyover from the road underneath.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Road capture records the road ahead (lanes, signs and signals) to improve the 3D map. Videos stay on this phone.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Cairo Nav does not record sound. Road capture videos are saved without audio.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

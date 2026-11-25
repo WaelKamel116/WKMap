@@ -17,17 +17,27 @@ class TripLogger {
 
   bool get recording => _sink != null;
 
-  Future<void> start(String source) async {
-    // Android: external app folder (copy over USB). iPhone: Documents, visible in the Files app.
+  /// Android: external app folder (copy over USB). iPhone: Documents, visible in the Files app.
+  static Future<Directory> tripsDir() async {
     final base = Platform.isAndroid
         ? (await getExternalStorageDirectory() ?? await getApplicationDocumentsDirectory())
         : await getApplicationDocumentsDirectory();
     final dir = Directory('${base.path}/trips');
     await dir.create(recursive: true);
-    final t = DateTime.now();
+    return dir;
+  }
+
+  /// 20261125_143005
+  static String stamp([DateTime? t]) {
+    t ??= DateTime.now();
     String two(int v) => v.toString().padLeft(2, '0');
-    final name = 'trip_${t.year}${two(t.month)}${two(t.day)}_${two(t.hour)}${two(t.minute)}${two(t.second)}.csv';
-    file = File('${dir.path}/$name');
+    return '${t.year}${two(t.month)}${two(t.day)}_${two(t.hour)}${two(t.minute)}${two(t.second)}';
+  }
+
+  /// Starts a new CSV. With [dir], writes `trip.csv` there (used by road capture,
+  /// so the sensor log and the videos of one drive sit in the same folder).
+  Future<void> start(String source, {Directory? dir}) async {
+    file = dir != null ? File('${dir.path}/trip.csv') : File('${(await tripsDir()).path}/trip_${stamp()}.csv');
     _sink = file!.openWrite();
     _sink!.writeln('# source=$source');
     _sink!.writeln('t_ms,kind,lon,lat,accuracy_m,speed_mps,heading_deg,gps_alt_m,pressure_hpa,level,confidence,baro_h_m,deck_h_m,road');

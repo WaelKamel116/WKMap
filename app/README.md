@@ -11,6 +11,15 @@ Proves the core idea on a real phone: **is the car up on the flyover or on the r
 - **Record**: writes every GPS fix, barometer reading and level decision to a CSV file, so a real drive can be replayed and the detector tuned.
   Files: `Android/data/com.smarttechsys.caironav/files/trips/` (copy them over USB).
 
+## Road capture (internal test mode)
+The camera button next to Record films the road ahead and records the sensor log at the same time.
+- One folder per drive: `trips/capture_YYYYMMDD_HHMMSS/` with `trip.csv` (GPS, barometer, level), `videos.csv` (clip times) and `clip_001.mp4`, `clip_002.mp4`, ... (1080p, 30 fps, no sound, a new clip every 3 minutes, about 180 MB each).
+- Mount the phone on the windscreen facing forward, landscape is best, lens clear of the wipers and the dashboard reflection. Keep the app open: phones stop the camera in the background, so capture stops and saves if you leave the app.
+- Videos stay on the phone. Copy the folder to the PC, then cut geotagged frames:
+  `python ../tools/extract_frames.py path/to/capture_folder --every 5` (needs ffmpeg: `winget install ffmpeg`).
+  Output: `frames/f_00001.jpg ...` plus `frames.csv` and `frames.geojson` (position, heading, speed, flyover level per frame).
+- **Privacy:** footage shows people and number plates. Internal team use only; blur faces and plates before sharing any frame, and do not upload footage anywhere.
+
 ## How the detector works (`lib/nav/level_detector.dart`)
 1. Map matching: find the road segments that fit the GPS position and heading.
 2. No flyover fits: you're on the ground. That moment is used to learn ground-level air pressure.

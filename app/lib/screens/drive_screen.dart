@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:camera/camera.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../capture/road_capture.dart';
 import '../map/map_layers.dart';
 import '../nav/level_detector.dart';
 import '../nav/match_data.dart';
@@ -22,7 +24,7 @@ class DriveScreen extends StatefulWidget {
   State<DriveScreen> createState() => _DriveScreenState();
 }
 
-class _DriveScreenState extends State<DriveScreen> {
+class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
   MapLibreMapController? _map;
   bool _styleReady = false;
   RouteData? _route;
@@ -30,6 +32,8 @@ class _DriveScreenState extends State<DriveScreen> {
   DriveSource? _source;
   StreamSubscription<DriveSample>? _sub;
   final _logger = TripLogger();
+  final _capture = RoadCapture();
+  Timer? _captureTick;
 
   bool _live = false;
   bool _follow = true;
@@ -41,6 +45,7 @@ class _DriveScreenState extends State<DriveScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WakelockPlus.enable();
     _load();
   }
@@ -102,7 +107,39 @@ class _DriveScreenState extends State<DriveScreen> {
     }
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Phones do not allow the camera in the background: save the clip and stop.
+    if (state == AppLifecycleState.paused && _capture.active) _toggleCapture();
+  }
+
+  /// Road capture: video from the back camera plus the sensor log, both in one
+  /// folder per drive. Internal test use only (see README).
+  Future<void> _toggleCapture() async {
+    if (_capture.active) {
+      _captureTick?.cancel();
+      await _capture.stop();
+      await _logger.stop();
+      final mb = (_capture.bytes / 1e6).toStringAsFixed(0);
+      setState(() => _message = _capture.error ??
+          'Saved ${_capture.clips} video clips ($mb MB) and the sensor log to ${_capture.lastFolder?.path}');
+      return;
+    }
+    final dir = await _capture.start();
+    if (dir == null) {
+      setState(() => _message = _capture.error ?? 'Could not start the camera.');
+      return;
+    }
+    if (_logger.recording) await _logger.stop();
+    await _logger.start('${_source?.label ?? ''} + road capture', dir: dir);
+    _captureTick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+    setState(() => _message = 'Road capture on. Mount the phone facing the road, camera clear of the wipers.');
+  }
+
   Future<void> _toggleRecording() async {
+    if (_capture.active) return; // the sensor log belongs to the capture until it stops
     if (_logger.recording) {
       await _logger.stop();
       setState(() => _message = 'Saved ${_logger.rows} rows to ${_logger.file?.path}');
@@ -114,6 +151,9 @@ class _DriveScreenState extends State<DriveScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _captureTick?.cancel();
+    _capture.dispose();
     _sub?.cancel();
     _source?.stop();
     _logger.stop();
@@ -146,6 +186,7 @@ class _DriveScreenState extends State<DriveScreen> {
             child: Column(children: [
               _LevelCard(est: _est, hasBaseline: _detector?.hasBaseline ?? false),
               const Spacer(),
+              if (_capture.camera != null) _CapturePreview(capture: _capture),
               if (_message != null) _Note(text: _message!, onClose: () => setState(() => _message = null)),
               _BottomBar(
                 live: _live,
@@ -156,6 +197,8 @@ class _DriveScreenState extends State<DriveScreen> {
                 pressure: _lastPressure,
                 onSource: (live) => _useSource(live: live),
                 onRecord: _toggleRecording,
+                capturing: _capture.active,
+                onCapture: _toggleCapture,
                 onFollow: () => setState(() => _follow = true),
               ),
             ]),
@@ -242,12 +285,14 @@ class _BottomBar extends StatelessWidget {
     required this.onSource,
     required this.onRecord,
     required this.onFollow,
+    required this.capturing,
+    required this.onCapture,
   });
-  final bool live, recording, follow;
+  final bool live, recording, follow, capturing;
   final double speedKmh;
   final double? accuracy, pressure;
   final ValueChanged<bool> onSource;
-  final VoidCallback onRecord, onFollow;
+  final VoidCallback onRecord, onFollow, onCapture;
 
   @override
   Widget build(BuildContext context) {
@@ -281,14 +326,65 @@ class _BottomBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
+          IconButton.filled(
+            onPressed: onCapture,
+            tooltip: capturing ? 'Stop road capture' : 'Road capture (camera + sensor log)',
+            style: IconButton.styleFrom(backgroundColor: capturing ? const Color(0xFFD7262E) : const Color(0xFF3A4656)),
+            icon: Icon(capturing ? Icons.videocam_off : Icons.videocam),
+          ),
+          const SizedBox(width: 8),
           FilledButton.icon(
-            onPressed: onRecord,
-            style: FilledButton.styleFrom(backgroundColor: recording ? const Color(0xFFD7262E) : const Color(0xFF2E5BFF)),
+            onPressed: capturing ? null : onRecord,
+            style: FilledButton.styleFrom(
+              backgroundColor: recording ? const Color(0xFFD7262E) : const Color(0xFF2E5BFF),
+              disabledBackgroundColor: const Color(0xFF6B2226),
+              disabledForegroundColor: Colors.white70,
+            ),
             icon: Icon(recording ? Icons.stop : Icons.fiber_manual_record),
             label: Text(recording ? 'Stop' : 'Record'),
           ),
         ]),
       ]),
+    );
+  }
+}
+
+/// Small live camera view with a REC badge, clip count and size.
+class _CapturePreview extends StatelessWidget {
+  const _CapturePreview({required this.capture});
+  final RoadCapture capture;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = capture.camera!;
+    final t = capture.elapsed;
+    final mm = t.inMinutes.toString().padLeft(2, '0'), ss = (t.inSeconds % 60).toString().padLeft(2, '0');
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Container(
+        width: 132,
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF17202A),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFD7262E), width: 1.5),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (c.value.isInitialized) CameraPreview(c),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            child: Row(children: [
+              const Icon(Icons.fiber_manual_record, color: Color(0xFFFF4D55), size: 12),
+              const SizedBox(width: 4),
+              Text('$mm:$ss', style: const TextStyle(color: Colors.white, fontSize: 12, fontFeatures: [FontFeature.tabularFigures()])),
+              const Spacer(),
+              Text('${capture.clips} · ${(capture.bytes / 1e6).toStringAsFixed(0)} MB',
+                  style: const TextStyle(color: Colors.white60, fontSize: 11)),
+            ]),
+          ),
+        ]),
+      ),
     );
   }
 }
