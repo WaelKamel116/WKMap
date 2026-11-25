@@ -10,6 +10,12 @@ Proves the core idea on a real phone: **is the car up on the flyover or on the r
   - **Live GPS**: real GPS at 1 Hz plus the phone's barometer. Keeps running with the screen off (shows a notification).
 - **Record**: writes every GPS fix, barometer reading and level decision to a CSV file, so a real drive can be replayed and the detector tuned.
   Files: `Android/data/com.smarttechsys.caironav/files/trips/` (copy them over USB).
+- **Map buttons** (right edge):
+  - **Move to my location**: in Live GPS it follows the car again; in Simulated it finds the phone's real position, shows a blue dot and moves the map there.
+  - **Map options**:
+    - Look: **Night** (default), **Day**, or **Game**. Game is a bright arcade look with coloured buildings, white lane paint, yellow kerbs, a glowing route, a small 3D car and 3D traffic lights that cycle green, amber and red. The cycling is for show, not real signal timing.
+    - Camera: **3D**, **Close** (low chase camera, the default in Game), or **Top-down** (north up).
+    - Switches for 3D buildings and traffic lights.
 
 ## Road capture (internal test mode)
 The camera button next to Record films the road ahead and records the sensor log at the same time.

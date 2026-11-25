@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:geolocator/geolocator.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -14,6 +15,17 @@ import '../nav/match_data.dart';
 import '../nav/route_data.dart';
 import '../sensors/drive_source.dart';
 import '../sensors/trip_logger.dart';
+
+/// How the camera follows the car.
+enum CamView {
+  follow3d('3D', Icons.threed_rotation),
+  chase('Close', Icons.directions_car),
+  top('Top-down', Icons.map_outlined);
+
+  const CamView(this.label, this.icon);
+  final String label;
+  final IconData icon;
+}
 
 /// Milestone 1 screen: 3D Nasr City map, live or simulated position, and the
 /// flyover level indicator, with a recorder for real test drives.
@@ -42,11 +54,23 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
   double? _lastPressure;
   String? _message;
 
+  // map display options
+  static final _initialStyle = baseStyle();
+  MapTheme _theme = MapTheme.night;
+  CamView _view = CamView.follow3d;
+  bool _showBuildings = true, _showSignals = true;
+  bool _cameraPlaced = false;
+  List<List<double>> _signalPts = const [];
+  Timer? _signalTimer;
+  int _tick = 0;
+  Position? _me;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WakelockPlus.enable();
+    _signalTimer = Timer.periodic(const Duration(seconds: 1), (_) => _animateSignals());
     _load();
   }
 
@@ -98,13 +122,185 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
     final c = _map;
     if (c == null || !_styleReady) return;
     final h = e.onFlyover ? (e.mapHeight ?? 0) : 0.0;
-    await c.setGeoJsonSource('puck', puckGeoJson(p.lon, p.lat, p.heading, h));
+    await c.setGeoJsonSource('puck', puckGeoJson(p.lon, p.lat, p.heading, h, theme: _theme));
     if (_follow) {
       await c.animateCamera(
-        CameraUpdate.newCameraPosition(CameraPosition(target: LatLng(p.lat, p.lon), zoom: 17.2, tilt: 60, bearing: p.heading)),
+        CameraUpdate.newCameraPosition(_cameraAt(p.lat, p.lon, p.heading)),
         duration: const Duration(milliseconds: 950),
       );
     }
+  }
+
+  CameraPosition _cameraAt(double lat, double lon, double heading) => switch (_view) {
+        CamView.follow3d => CameraPosition(target: LatLng(lat, lon), zoom: 17.2, tilt: 60, bearing: heading),
+        CamView.chase => CameraPosition(target: LatLng(lat, lon), zoom: 18.4, tilt: 60, bearing: heading),
+        CamView.top => CameraPosition(target: LatLng(lat, lon), zoom: 16.3, tilt: 0, bearing: 0),
+      };
+
+  Future<void> _onStyleLoaded() async {
+    final c = _map, r = _route;
+    if (r == null || c == null) return;
+    final theme = _theme;
+    _styleReady = false;
+    try {
+      _signalPts = await addCityLayers(c, r, theme: theme);
+    } catch (_) {
+      return; // the look was changed again while loading; the next load redraws
+    }
+    if (theme != _theme) return;
+    _styleReady = true;
+    await _applyVisibility();
+    await _showMe();
+    if (_lastPos != null && _est != null) {
+      await _moveCar(_lastPos!, _est!);
+    } else if (!_cameraPlaced) {
+      // start the view at the beginning of the planned route (City Stars)
+      final p0 = r.sample(0), p1 = r.sample(60);
+      await c.moveCamera(CameraUpdate.newCameraPosition(CameraPosition(
+          target: LatLng(p0.lat, p0.lon), zoom: 16.5, tilt: 55, bearing: p1.heading)));
+    }
+    _cameraPlaced = true;
+  }
+
+  Future<void> _setTheme(MapTheme t) async {
+    if (t == _theme) return;
+    setState(() {
+      _theme = t;
+      if (t == MapTheme.game && _view == CamView.follow3d) _view = CamView.chase;
+      if (t != MapTheme.game && _view == CamView.chase) _view = CamView.follow3d;
+    });
+    _styleReady = false;
+    await _map?.setStyle(baseStyle(t)); // reloads the style; _onStyleLoaded draws the new look
+  }
+
+  Future<void> _setView(CamView v) async {
+    setState(() => _view = v);
+    final c = _map;
+    if (c == null) return;
+    if (_follow && _lastPos != null && _est != null) return _moveCar(_lastPos!, _est!);
+    final cam = c.cameraPosition;
+    if (cam == null) return;
+    final next = _cameraAt(cam.target.latitude, cam.target.longitude, cam.bearing);
+    await c.animateCamera(CameraUpdate.newCameraPosition(next), duration: const Duration(milliseconds: 700));
+  }
+
+  Future<void> _applyVisibility() async {
+    final c = _map;
+    if (c == null || !_styleReady) return;
+    Future<void> vis(String id, bool on) async {
+      try {
+        await c.setLayerVisibility(id, on);
+      } catch (_) {} // that layer is not part of this look
+    }
+
+    await vis('buildings', _showBuildings);
+    for (final id in signalLayers) {
+      await vis(id, _showSignals);
+    }
+  }
+
+  /// Game look: step every traffic light through green, amber and red.
+  Future<void> _animateSignals() async {
+    final c = _map;
+    if (c == null || !_styleReady || _theme != MapTheme.game || _signalPts.isEmpty || !_showSignals) return;
+    _tick++;
+    try {
+      await c.setGeoJsonSource('signal-pts', signalGlowGeoJson(_signalPts, _tick));
+      await c.setGeoJsonSource('signal-3d', signals3dGeoJson(_signalPts, _tick));
+    } catch (_) {}
+  }
+
+  Future<void> _showMe() async {
+    final c = _map, p = _me;
+    if (c == null || p == null || !_styleReady) return;
+    await c.setGeoJsonSource('me', meGeoJson(p.longitude, p.latitude, p.accuracy, 17));
+  }
+
+  /// "Move to my location". With live GPS the car is you, so this follows the
+  /// car again. In simulated mode it finds the phone's position, shows it as a
+  /// blue dot and moves the map there.
+  Future<void> _goToMe() async {
+    if (_live) {
+      setState(() => _follow = true);
+      if (_lastPos != null && _est != null) await _moveCar(_lastPos!, _est!);
+      return;
+    }
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      setState(() => _message = 'Location is turned off. Turn it on in the phone settings.');
+      return;
+    }
+    var perm = await Geolocator.checkPermission();
+    if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
+    if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+      setState(() => _message = 'Location permission was refused. Allow it in the phone settings.');
+      return;
+    }
+    setState(() => _message = 'Finding your location…');
+    Position? p;
+    try {
+      p = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 12)));
+    } catch (_) {
+      p = await Geolocator.getLastKnownPosition();
+    }
+    if (!mounted) return;
+    if (p == null) {
+      setState(() => _message = 'Could not get a GPS fix. Try again near a window or outside.');
+      return;
+    }
+    final r = _route!;
+    var w = 180.0, e = -180.0, s = 90.0, n = -90.0;
+    for (final c in r.coords) {
+      if (c[0] < w) w = c[0];
+      if (c[0] > e) e = c[0];
+      if (c[1] < s) s = c[1];
+      if (c[1] > n) n = c[1];
+    }
+    const pad = 0.03; // about 3 km: main roads are mapped well beyond the route
+    final inside = p.longitude > w - pad && p.longitude < e + pad && p.latitude > s - pad && p.latitude < n + pad;
+    setState(() {
+      _me = p;
+      _follow = false; // keep the simulated car from pulling the map back
+      _message = inside ? null : 'You are outside the mapped area (Nasr City to New Cairo), so the map around you is empty.';
+    });
+    await _showMe();
+    final bearing = _map?.cameraPosition?.bearing ?? 0;
+    await _map?.animateCamera(CameraUpdate.newCameraPosition(_cameraAt(p.latitude, p.longitude, bearing)),
+        duration: const Duration(milliseconds: 900));
+  }
+
+  void _openOptions() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF17202A),
+      showDragHandle: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => _OptionsSheet(
+          theme: _theme,
+          view: _view,
+          buildings: _showBuildings,
+          signals: _showSignals,
+          onTheme: (t) {
+            _setTheme(t);
+            setSheet(() {});
+          },
+          onView: (v) {
+            _setView(v);
+            setSheet(() {});
+          },
+          onBuildings: (on) {
+            setState(() => _showBuildings = on);
+            setSheet(() {});
+            _applyVisibility();
+          },
+          onSignals: (on) {
+            setState(() => _showSignals = on);
+            setSheet(() {});
+            _applyVisibility();
+          },
+        ),
+      ),
+    );
   }
 
   @override
@@ -153,6 +349,7 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _captureTick?.cancel();
+    _signalTimer?.cancel();
     _capture.dispose();
     _sub?.cancel();
     _source?.stop();
@@ -164,27 +361,17 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0E141B),
+      backgroundColor: Color(MapPalette.of(_theme).ui),
       body: Stack(children: [
         MapLibreMap(
-          styleString: baseStyle,
+          styleString: _initialStyle,
           initialCameraPosition: const CameraPosition(target: LatLng(30.0725, 31.3460), zoom: 16.5, tilt: 55, bearing: 180),
           compassEnabled: false,
           rotateGesturesEnabled: true,
           tiltGesturesEnabled: true,
           onMapCreated: (c) => _map = c,
           onCameraTrackingDismissed: () => setState(() => _follow = false),
-          onStyleLoadedCallback: () async {
-            if (_route == null || _map == null) return;
-            await addCityLayers(_map!, _route!);
-            _styleReady = true;
-            // start the view at the beginning of the planned route (City Stars)
-            if (_lastPos == null) {
-              final r = _route!, p0 = r.sample(0), p1 = r.sample(60);
-              await _map!.moveCamera(CameraUpdate.newCameraPosition(CameraPosition(
-                  target: LatLng(p0.lat, p0.lon), zoom: 16.5, tilt: 55, bearing: p1.heading)));
-            }
-          },
+          onStyleLoadedCallback: _onStyleLoaded,
         ),
         SafeArea(
           child: Padding(
@@ -192,6 +379,7 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
             child: Column(children: [
               _LevelCard(est: _est, hasBaseline: _detector?.hasBaseline ?? false),
               const Spacer(),
+              _MapButtons(onMe: _goToMe, onOptions: _openOptions, theme: _theme),
               if (_capture.camera != null) _CapturePreview(capture: _capture),
               if (_message != null) _Note(text: _message!, onClose: () => setState(() => _message = null)),
               _BottomBar(
@@ -388,6 +576,113 @@ class _CapturePreview extends StatelessWidget {
               Text('${capture.clips} · ${(capture.bytes / 1e6).toStringAsFixed(0)} MB',
                   style: const TextStyle(color: Colors.white60, fontSize: 11)),
             ]),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Round buttons on the right edge: map options and move to my location.
+class _MapButtons extends StatelessWidget {
+  const _MapButtons({required this.onMe, required this.onOptions, required this.theme});
+  final VoidCallback onMe, onOptions;
+  final MapTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = IconButton.styleFrom(
+      backgroundColor: const Color(0xEE17202A),
+      foregroundColor: Colors.white,
+      fixedSize: const Size(48, 48),
+    );
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          IconButton(
+            onPressed: onOptions,
+            style: style,
+            tooltip: 'Map options',
+            icon: Icon(theme == MapTheme.game ? Icons.sports_esports : Icons.layers_outlined),
+          ),
+          const SizedBox(height: 8),
+          IconButton(onPressed: onMe, style: style, tooltip: 'Move to my location', icon: const Icon(Icons.my_location)),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Bottom sheet: map look, camera and which layers to show.
+class _OptionsSheet extends StatelessWidget {
+  const _OptionsSheet({
+    required this.theme,
+    required this.view,
+    required this.buildings,
+    required this.signals,
+    required this.onTheme,
+    required this.onView,
+    required this.onBuildings,
+    required this.onSignals,
+  });
+  final MapTheme theme;
+  final CamView view;
+  final bool buildings, signals;
+  final ValueChanged<MapTheme> onTheme;
+  final ValueChanged<CamView> onView;
+  final ValueChanged<bool> onBuildings, onSignals;
+
+  @override
+  Widget build(BuildContext context) {
+    const head = TextStyle(color: Colors.white70, fontSize: 12, letterSpacing: 0.8, fontWeight: FontWeight.w600);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('MAP LOOK', style: head),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<MapTheme>(
+              segments: const [
+                ButtonSegment(value: MapTheme.night, label: Text('Night'), icon: Icon(Icons.dark_mode_outlined)),
+                ButtonSegment(value: MapTheme.day, label: Text('Day'), icon: Icon(Icons.light_mode_outlined)),
+                ButtonSegment(value: MapTheme.game, label: Text('Game'), icon: Icon(Icons.sports_esports_outlined)),
+              ],
+              selected: {theme},
+              onSelectionChanged: (s) => onTheme(s.first),
+            ),
+          ),
+          if (theme == MapTheme.game)
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Text('Bright city, 3D car and working 3D traffic lights.', style: TextStyle(color: Colors.white54, fontSize: 12)),
+            ),
+          const SizedBox(height: 18),
+          const Text('CAMERA', style: head),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<CamView>(
+              segments: [for (final v in CamView.values) ButtonSegment(value: v, label: Text(v.label), icon: Icon(v.icon))],
+              selected: {view},
+              onSelectionChanged: (s) => onView(s.first),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: buildings,
+            onChanged: onBuildings,
+            title: const Text('3D buildings', style: TextStyle(color: Colors.white)),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: signals,
+            onChanged: onSignals,
+            title: const Text('Traffic lights', style: TextStyle(color: Colors.white)),
           ),
         ]),
       ),
