@@ -12,6 +12,8 @@ class MapPalette {
   static const ground = '#0E141B', green = '#13261C', pitch = '#173022', paved = '#1A222B', bare = '#1B1D1F', water = '#0D2638';
   static const minor = '#2A3644', casing = '#18212B', major = '#3B3527', majorCasing = '#262117', lane = '#75684A';
   static const bldgLo = '#1C2632', bldgHi = '#2F4054', deck = '#3D4A5A', pillar = '#26303B';
+  static const shopLo = '#3A2E24', shopHi = '#5A4632'; // buildings with shops/offices (Overture places)
+  static const signal = '#FF4D55', signalRing = '#1A0B0C';
   static const route = '#5C8CFF', routeCasing = '#2346C7', ring = '#E8EEF5';
 }
 
@@ -58,6 +60,7 @@ Future<void> addCityLayers(MapLibreMapController c, RouteData route) async {
   await c.addGeoJsonSource('decks', bridges['decks'] as Map<String, dynamic>);
   await c.addGeoJsonSource('pillars', bridges['pillars'] as Map<String, dynamic>);
   await c.addGeoJsonSource('buildings', buildings);
+  await c.addGeoJsonSource('signals', ground['signals'] as Map<String, dynamic>);
   await c.addGeoJsonSource('route-ground', {
     'type': 'Feature', 'properties': {},
     'geometry': {'type': 'MultiLineString', 'coordinates': route.groundParts()},
@@ -102,9 +105,18 @@ Future<void> addCityLayers(MapLibreMapController c, RouteData route) async {
   await c.addFillExtrusionLayer('route-ribbon', 'route-ribbon', const FillExtrusionLayerProperties(
       fillExtrusionColor: MapPalette.route, fillExtrusionHeight: ['get', 't'], fillExtrusionBase: ['get', 'b'], fillExtrusionVerticalGradient: false));
   await c.addFillExtrusionLayer('buildings', 'buildings', const FillExtrusionLayerProperties(
-    fillExtrusionColor: ['interpolate', ['linear'], ['get', 'h'], 4, MapPalette.bldgLo, 40, MapPalette.bldgHi],
+    fillExtrusionColor: [
+      'case',
+      ['==', ['get', 'com'], 1], ['interpolate', ['linear'], ['get', 'h'], 4, MapPalette.shopLo, 40, MapPalette.shopHi],
+      ['interpolate', ['linear'], ['get', 'h'], 4, MapPalette.bldgLo, 40, MapPalette.bldgHi],
+    ],
     fillExtrusionHeight: ['get', 'h'], fillExtrusionBase: 0, fillExtrusionOpacity: 0.9,
   ));
+  // traffic lights mapped in OpenStreetMap (incomplete in Cairo; road capture will fill the gaps)
+  await c.addCircleLayer('signals', 'signals', const CircleLayerProperties(
+    circleColor: MapPalette.signal, circleRadius: ['interpolate', ['linear'], ['zoom'], 14, 2.5, 18, 7],
+    circleStrokeColor: MapPalette.signalRing, circleStrokeWidth: 1.5, circlePitchAlignment: 'map',
+  ), minzoom: 14);
   await c.addFillExtrusionLayer('puck', 'puck', const FillExtrusionLayerProperties(
       fillExtrusionColor: ['get', 'c'], fillExtrusionHeight: ['get', 't'], fillExtrusionBase: ['get', 'b'], fillExtrusionVerticalGradient: false));
 }

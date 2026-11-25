@@ -168,7 +168,7 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
       body: Stack(children: [
         MapLibreMap(
           styleString: baseStyle,
-          initialCameraPosition: const CameraPosition(target: LatLng(30.0745, 31.3585), zoom: 16.5, tilt: 55, bearing: 226),
+          initialCameraPosition: const CameraPosition(target: LatLng(30.0725, 31.3460), zoom: 16.5, tilt: 55, bearing: 180),
           compassEnabled: false,
           rotateGesturesEnabled: true,
           tiltGesturesEnabled: true,
@@ -178,6 +178,12 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
             if (_route == null || _map == null) return;
             await addCityLayers(_map!, _route!);
             _styleReady = true;
+            // start the view at the beginning of the planned route (City Stars)
+            if (_lastPos == null) {
+              final r = _route!, p0 = r.sample(0), p1 = r.sample(60);
+              await _map!.moveCamera(CameraUpdate.newCameraPosition(CameraPosition(
+                  target: LatLng(p0.lat, p0.lon), zoom: 16.5, tilt: 55, bearing: p1.heading)));
+            }
           },
         ),
         SafeArea(

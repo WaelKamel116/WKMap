@@ -12,3 +12,9 @@ key.properties
 Thumbs.db
 .idea/
 __pycache__/
+# Large re-downloadable inputs (tools/fetch_area.py, tools/fetch_overture.py) and scratch builds
+raw/cfc/roads.json
+raw/cfc/areas.json
+raw/cfc/overture_*.json
+raw/cfc/ms_box.json
+build_tmp/

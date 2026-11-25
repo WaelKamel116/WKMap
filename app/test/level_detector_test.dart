@@ -91,19 +91,22 @@ void main() {
     });
   });
 
-  group('real Nasr City data', () {
+  group('real map data (merged OSM + Overture)', () {
     late MatchData match;
-    late RouteData route;
+    late RouteData nasr, cfc;
+    RouteData loadRoute(String path) =>
+        RouteData.fromJson(jsonDecode(File(path).readAsStringSync()) as Map<String, dynamic>);
     setUpAll(() {
       match = MatchData.fromJson(jsonDecode(File('assets/data/match.json').readAsStringSync()) as Map<String, dynamic>);
-      route = RouteData.fromJson(jsonDecode(File('assets/data/route.json').readAsStringSync()) as Map<String, dynamic>);
+      nasr = loadRoute('test/fixtures/nasr_route.json'); // El Nasr Road over Ganzoury + Mamdouh Marei flyovers
+      cfc = loadRoute('assets/data/route.json'); // City Stars -> Cairo Festival City
     });
 
-    test('a simulated drive over both flyovers is classified correctly almost everywhere', () {
+    double drive(RouteData route) {
       final d = LevelDetector(match);
       final rnd = math.Random(3);
       double gauss() => math.sqrt(-2 * math.log(1 - rnd.nextDouble())) * math.cos(2 * math.pi * rnd.nextDouble());
-      var right = 0, total = 0;
+      var right = 0, total = 0, up = 0;
       final wrongAt = <int>[];
       for (var s = 0.0; s < route.distance; s += 1.5) {
         final p = route.sample(s);
@@ -114,6 +117,7 @@ void main() {
         final truthUp = p.height > 2.5;
         if (p.height > 0.8 && p.height < 2.5) continue; // ramps: either answer is acceptable
         total++;
+        if (truthUp) up++;
         if (e.onFlyover == truthUp) {
           right++;
         } else {
@@ -121,11 +125,20 @@ void main() {
         }
       }
       // ignore: avoid_print
-      print('correct $right / $total, wrong at metres $wrongAt');
-      expect(right / total, greaterThan(0.95));
+      print('correct $right / $total ($up on flyovers), wrong at metres $wrongAt');
+      return right / total;
+    }
+
+    test('El Nasr Road drive over both flyovers is classified correctly almost everywhere', () {
+      expect(drive(nasr), greaterThan(0.95));
+    });
+
+    test('City Stars to Cairo Festival City drive is classified correctly almost everywhere', () {
+      expect(drive(cfc), greaterThan(0.95));
     });
 
     test('on the Ganzoury flyover with ground-level pressure, the car is on the road below', () {
+      final route = nasr;
       final d = LevelDetector(match);
       // learn the ground pressure at the start of the route (no flyover there)
       for (var s = 0.0; s < 300; s += 15) {

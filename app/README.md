@@ -55,6 +55,22 @@ Bundle id: `com.smarttechsys.caironav`. Trips are saved in the app's Documents f
 3. Codemagic: sign up, add the repo, Team settings > Integrations > App Store Connect: add the key with the name `CairoNav ASC key`.
 4. Start the `ios-testflight` workflow. About 20 minutes later the build appears in TestFlight on your iPhone.
 
+## Map data: City Stars to Cairo Festival City (current)
+`assets/data/` covers Nasr City to New Cairo. Built by merging several open sources with `../tools/build_area.py`:
+- **OpenStreetMap:** roads, flyovers (with layer for stacked bridges), traffic lights, parks.
+- **Overture Maps:** buildings already merged from OpenStreetMap, Microsoft and **Google Open Buildings**, plus 13,000+ places (shops, clinics, banks) used to mark commercial buildings.
+- **Microsoft footprints (raw):** gap-filler where no other source has a building.
+- Checks in the build: duplicates across sources, buildings sitting on roads or flyovers, tiny or low-confidence shapes, coverage against raw Microsoft footprints (96 %). The report is saved in `assets/data/sources.json`.
+- Heights are **estimated** (no source has real heights for Cairo): Nasr City blocks 6 to 12 floors, New Cairo villas 2 to 3, malls, hospitals and offices by type.
+- Main roads and flyovers cover the whole area; buildings and small streets a 500 m strip along the route.
+
+Rebuild:
+```
+python ../tools/fetch_area.py ../raw/cfc 30.015 31.325 30.100 31.430      # OSM (Overpass)
+python ../tools/fetch_overture.py ../raw/cfc 30.015 31.325 30.100 31.430  # Overture (pip install duckdb)
+python ../tools/build_area.py cfc --extra-route raw/route3.json            # run from the repo root
+```
+
 ## Data
 `assets/data/*.json` is copied from `../demo/data` (built by `../tools/build_data.py`).
-Map data © OpenStreetMap contributors (ODbL); building footprints © Microsoft (ODbL).
+Map data © OpenStreetMap contributors (ODbL); Overture Maps Foundation; building footprints © Microsoft (ODbL) and Google Open Buildings (CC BY 4.0).
