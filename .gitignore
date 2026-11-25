@@ -1,0 +1,14 @@
+# Large downloads, re-fetchable (see README > Data sources)
+raw/ms/
+# Secrets: never commit signing keys or API keys
+*.p8
+*.p12
+*.jks
+*.keystore
+key.properties
+.env
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+__pycache__/

@@ -1,0 +1,1797 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62.11 87bfad18",
+  "osm3s": {
+    "timestamp_osm_base": "2026-11-25T09:05:46Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+
+{
+  "type": "way",
+  "id": 24917215,
+  "center": {
+    "lat": 30.0805552,
+    "lon": 31.3620697
+  },
+  "tags": {
+    "alt_name": "كوبرى الكيلو اربعه ونص",
+    "alt_name:en": "Al Kilo Arbah W Nos Bridge",
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "trunk",
+    "lanes": "3",
+    "layer": "1",
+    "name": "كوبرى المشير محمد عبد الحليم ابو غزاله",
+    "name:ar": "كوبرى المشير محمد عبد الحليم ابو غزاله",
+    "name:en": "Al Moshir Mohamed Abd Al Halim Abou Ghazala Bridge",
+    "old_ref": "03",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 28829008,
+  "center": {
+    "lat": 30.0740530,
+    "lon": 31.3018762
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "secondary",
+    "layer": "1",
+    "lit": "yes",
+    "name": "كوبري الفنجري",
+    "name:ar": "كوبري الفنجري",
+    "name:en": "Al Fangary Bridge",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 28829063,
+  "center": {
+    "lat": 30.0740266,
+    "lon": 31.3018031
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "secondary",
+    "layer": "1",
+    "lit": "yes",
+    "maxspeed": "60",
+    "name": "كوبري الفنجري",
+    "name:ar": "كوبري الفنجري",
+    "name:en": "Al Fangary Bridge",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 29182231,
+  "center": {
+    "lat": 30.0597435,
+    "lon": 31.3046975
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "ميدان التحرير; الجيزة",
+    "destination:lang:en": "El Tahrir Square; Giza",
+    "highway": "motorway_link",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 29182237,
+  "center": {
+    "lat": 30.0587114,
+    "lon": 31.3031140
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "مدينة نصر; مطار القاهرة",
+    "destination:lang:en": "Nasr City; Cairo Airport",
+    "highway": "motorway_link",
+    "layer": "2",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 41675371,
+  "center": {
+    "lat": 30.0829604,
+    "lon": 31.3404764
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "lit": "yes",
+    "name": "كوبري النزهه",
+    "name:ar": "كوبري النزهه",
+    "name:en": "Al Nozha Bridge",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 52244426,
+  "center": {
+    "lat": 30.0805255,
+    "lon": 31.3622402
+  },
+  "tags": {
+    "alt_name": "كوبرى الكيلو اربعه ونص",
+    "alt_name:en": "Al Kilo Arbah W Nos Bridge",
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "trunk",
+    "lanes": "3",
+    "layer": "1",
+    "name": "كوبرى المشير محمد عبد الحليم ابو غزاله",
+    "name:ar": "كوبرى المشير محمد عبد الحليم ابو غزاله",
+    "name:en": "Al Moshir Mohamed Abd Al Halim Abou Ghazala Bridge",
+    "old_ref": "03",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 393878347,
+  "center": {
+    "lat": 30.0808912,
+    "lon": 31.3612281
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "مدينة نصر; طريق السويس",
+    "destination:lang:en": "Nasr City; Suez Road",
+    "foot": "no",
+    "highway": "trunk_link",
+    "layer": "1",
+    "oneway": "yes",
+    "start_date": "2015"
+  }
+},
+{
+  "type": "way",
+  "id": 406976202,
+  "center": {
+    "lat": 30.0808998,
+    "lon": 31.3625314
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "مصر الجديدة; طريق العروبة",
+    "destination:lang:en": "Heliopolis; Orouba Road",
+    "foot": "no",
+    "highway": "trunk_link",
+    "layer": "1",
+    "oneway": "yes",
+    "start_date": "2015"
+  }
+},
+{
+  "type": "way",
+  "id": 537710774,
+  "center": {
+    "lat": 30.0620620,
+    "lon": 31.3003426
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "ميدان العباسية",
+    "destination:lang:en": "Abbasia Square",
+    "foot": "no",
+    "highway": "motorway_link",
+    "layer": "1",
+    "maxspeed": "60",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 550906130,
+  "center": {
+    "lat": 30.0628376,
+    "lon": 31.2991518
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "motorway_link",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 564555058,
+  "center": {
+    "lat": 30.0537069,
+    "lon": 31.3383640
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 647450081,
+  "center": {
+    "lat": 30.0674703,
+    "lon": 31.3249899
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "secondary",
+    "lanes": "3",
+    "layer": "1",
+    "maxweight:signed": "no",
+    "name": "كوبرى الشهيد هشام بركات",
+    "name:ar": "كوبرى الشهيد هشام بركات",
+    "name:en": "Al Shahid Hesham Barakat Bridge",
+    "oneway": "yes",
+    "surface": "asphalt"
+  }
+},
+{
+  "type": "way",
+  "id": 652130052,
+  "center": {
+    "lat": 30.0627756,
+    "lon": 31.3436063
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "tertiary",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 669890459,
+  "center": {
+    "lat": 30.0547525,
+    "lon": 31.3481309
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 676722220,
+  "center": {
+    "lat": 30.0662265,
+    "lon": 31.3055271
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "شارع المخيم الدائم;محور الشهيد;طريق النصر;طربق الأوتوستراد;طريق السويس",
+    "destination:lang:en": "Al Mokhim Al Da'em Street;Al Shahid Axis;Al Nasr Road;Al Autostrad Road;Suez Road",
+    "foot": "no",
+    "highway": "secondary",
+    "layer": "1",
+    "lit": "yes",
+    "maxspeed": "60",
+    "name": "كوبري الفنجري",
+    "name:ar": "كوبري الفنجري",
+    "name:en": "Al Fangary Bridge",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 676722223,
+  "center": {
+    "lat": 30.0602182,
+    "lon": 31.3092269
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "secondary",
+    "layer": "1",
+    "lit": "yes",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 676722225,
+  "center": {
+    "lat": 30.0630278,
+    "lon": 31.3116026
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "طريق النصر;طربق الأوتوستراد;طريق السويس",
+    "destination:lang:en": "Al Nasr Road;Autostrad Road;Suez Road",
+    "foot": "no",
+    "highway": "trunk_link",
+    "layer": "1",
+    "lit": "yes",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 676722226,
+  "center": {
+    "lat": 30.0616888,
+    "lon": 31.3079328
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "طريق النصر; طربق الأوتوستراد; طريق السويس",
+    "destination:lang:en": "Al Nasr Road; Autostrad Road; Suez Road",
+    "foot": "no",
+    "highway": "trunk_link",
+    "layer": "2",
+    "lit": "yes",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 683353636,
+  "center": {
+    "lat": 30.0412704,
+    "lon": 31.3074856
+  },
+  "tags": {
+    "alt_name": "محور المشير طنطاوى",
+    "alt_name:en": "Al Moshir Tantawy Axis",
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "trunk",
+    "layer": "1",
+    "lit": "yes",
+    "maxspeed": "60",
+    "name": "كوبرى الشهيد النقيب احمد حافظ شوشة",
+    "name:ar": "كوبرى الشهيد النقيب احمد حافظ شوشة",
+    "name:en": "Al Shahid Al Naqib Ahmed Hafez Shousha Bridge",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 688867136,
+  "center": {
+    "lat": 30.0411523,
+    "lon": 31.3076152
+  },
+  "tags": {
+    "alt_name": "محور المشير طنطاوى",
+    "alt_name:en": "Al Moshir Tantawy Axis",
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "trunk",
+    "layer": "1",
+    "lit": "yes",
+    "maxspeed": "80",
+    "name": "كوبرى الشهيد النقيب احمد حافظ شوشة",
+    "name:ar": "كوبرى الشهيد النقيب احمد حافظ شوشة",
+    "name:en": "Al Shahid Al Naqib Ahmed Hafez Shousha Bridge",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 689976456,
+  "center": {
+    "lat": 30.0654111,
+    "lon": 31.3061400
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "secondary",
+    "layer": "1",
+    "lit": "yes",
+    "name": "كوبري الفنجري",
+    "name:ar": "كوبري الفنجري",
+    "name:en": "Al Fangary Bridge",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 696115544,
+  "center": {
+    "lat": 30.0829811,
+    "lon": 31.3403713
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "lit": "yes",
+    "name": "كوبري النزهه",
+    "name:ar": "كوبري النزهه",
+    "name:en": "Al Nozha Bridge",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 699860568,
+  "center": {
+    "lat": 30.0609140,
+    "lon": 31.3007805
+  },
+  "tags": {
+    "bridge": "yes",
+    "highway": "motorway",
+    "layer": "1",
+    "maxspeed": "60",
+    "name": "كوبرى 6 أكتوبر",
+    "name:ar": "كوبرى 6 أكتوبر",
+    "name:en": "6th October Bridge",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 699860569,
+  "center": {
+    "lat": 30.0628782,
+    "lon": 31.2985482
+  },
+  "tags": {
+    "bridge": "yes",
+    "highway": "motorway",
+    "layer": "1",
+    "maxspeed": "80",
+    "name": "كوبرى 6 أكتوبر",
+    "name:ar": "كوبرى 6 أكتوبر",
+    "name:en": "6th October Bridge",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 699860571,
+  "center": {
+    "lat": 30.0579550,
+    "lon": 31.3011687
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "القلعة; المعادى",
+    "destination:lang:en": "Citadel; Maadi",
+    "highway": "motorway_link",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 699860577,
+  "center": {
+    "lat": 30.0596704,
+    "lon": 31.3051897
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "مدينة نصر; مطار القاهرة",
+    "destination:lang:en": "Nasr City; Cairo Airport",
+    "highway": "motorway_link",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 699895434,
+  "center": {
+    "lat": 30.0625291,
+    "lon": 31.3101507
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "كوبرى الفنجرى;محور تحيا مصر",
+    "destination:lang:en": "El fangry Bridge;Tahia Misr Corridor",
+    "foot": "no",
+    "highway": "trunk_link",
+    "layer": "1",
+    "lit": "yes",
+    "maxspeed": "30",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 699895440,
+  "center": {
+    "lat": 30.0598046,
+    "lon": 31.3094977
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "secondary",
+    "layer": "1",
+    "lit": "yes",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 699895441,
+  "center": {
+    "lat": 30.0620154,
+    "lon": 31.3084078
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "كوبرى الفنجرى; محور تحيا مصر",
+    "destination:lang:en": "El fangry Bridge; Tahia Misr Corridor",
+    "foot": "no",
+    "highway": "trunk_link",
+    "layer": "1",
+    "lit": "yes",
+    "maxspeed": "30",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 700675428,
+  "center": {
+    "lat": 30.0548749,
+    "lon": 31.3478293
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "شارع عباس العقاد;شارع الشهيد هشام بركات",
+    "destination:lang:en": "Abbas Al Aqqad Street;Al Shaheed Hisham Barakat Street",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 701131330,
+  "center": {
+    "lat": 30.0758043,
+    "lon": 31.3009019
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "secondary",
+    "layer": "1",
+    "lit": "yes",
+    "maxspeed": "60",
+    "name": "كوبري الفنجري",
+    "name:ar": "كوبري الفنجري",
+    "name:en": "Al Fangary Bridge",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 701131331,
+  "center": {
+    "lat": 30.0760289,
+    "lon": 31.3009638
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "secondary",
+    "layer": "1",
+    "lit": "yes",
+    "name": "كوبري الفنجري",
+    "name:ar": "كوبري الفنجري",
+    "name:en": "Al Fangary Bridge",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 753684497,
+  "center": {
+    "lat": 30.0789265,
+    "lon": 31.3625787
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "مطار القاهرة; مساكن الشراتون; مصر الجديدة",
+    "destination:lang:en": "Cairo Airport; Masakin Sheraton; Heliopolis",
+    "highway": "trunk_link",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 753684498,
+  "center": {
+    "lat": 30.0786946,
+    "lon": 31.3628939
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "القاهرة الجديدة; طريق السويس",
+    "destination:lang:en": "New Cairo; Suez Road",
+    "foot": "no",
+    "highway": "trunk_link",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 819202030,
+  "center": {
+    "lat": 30.0686154,
+    "lon": 31.3361648
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "trunk",
+    "lanes": "2",
+    "layer": "1",
+    "lit": "yes",
+    "maxspeed": "60",
+    "name": "كوبرى المستشار ممدوح مرعي",
+    "name:ar": "كوبرى المستشار ممدوح مرعي",
+    "name:en": "Al Mostashar Mamdouh Marei Bridge",
+    "oneway": "yes",
+    "surface": "asphalt"
+  }
+},
+{
+  "type": "way",
+  "id": 819202033,
+  "center": {
+    "lat": 30.0687528,
+    "lon": 31.3383608
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "trunk",
+    "lanes": "2",
+    "layer": "1",
+    "lit": "yes",
+    "maxspeed": "60",
+    "name": "كوبرى المستشار ممدوح مرعي",
+    "name:ar": "كوبرى المستشار ممدوح مرعي",
+    "name:en": "Al Mostashar Mamdouh Marei Bridge",
+    "oneway": "yes",
+    "surface": "asphalt"
+  }
+},
+{
+  "type": "way",
+  "id": 819202034,
+  "center": {
+    "lat": 30.0690391,
+    "lon": 31.3399729
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "كوبرى الفنجرى;كوبرى أكتوبر",
+    "destination:lang:en": "Fangry Bridge;October Bridge",
+    "foot": "no",
+    "highway": "trunk",
+    "lanes": "2",
+    "layer": "1",
+    "lit": "yes",
+    "maxspeed": "60",
+    "name": "كوبرى المستشار ممدوح مرعي",
+    "name:ar": "كوبرى المستشار ممدوح مرعي",
+    "name:en": "Al Mostashar Mamdouh Marei Bridge",
+    "oneway": "yes",
+    "surface": "asphalt"
+  }
+},
+{
+  "type": "way",
+  "id": 819202035,
+  "center": {
+    "lat": 30.0683036,
+    "lon": 31.3342764
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "القاهرة الجديدة;طريق السويس;مطار القاهرة",
+    "destination:lang:en": "New Cairo;Suez Road;Airport Cairo",
+    "foot": "no",
+    "highway": "trunk",
+    "lanes": "2",
+    "layer": "1",
+    "lit": "yes",
+    "maxspeed": "60",
+    "name": "كوبرى المستشار ممدوح مرعي",
+    "name:ar": "كوبرى المستشار ممدوح مرعي",
+    "name:en": "Al Mostashar Mamdouh Marei Bridge",
+    "oneway": "yes",
+    "surface": "asphalt"
+  }
+},
+{
+  "type": "way",
+  "id": 819221577,
+  "center": {
+    "lat": 30.0666675,
+    "lon": 31.3200404
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "secondary",
+    "layer": "1",
+    "name": "كوبرى يوسف عباس",
+    "name:ar": "كوبرى يوسف عباس",
+    "name:en": "Youssef Abbas Bridge",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 819221582,
+  "center": {
+    "lat": 30.0667269,
+    "lon": 31.3202238
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "secondary",
+    "layer": "1",
+    "name": "كوبرى يوسف عباس",
+    "name:ar": "كوبرى يوسف عباس",
+    "name:en": "Youssef Abbas Bridge",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 819221584,
+  "center": {
+    "lat": 30.0674550,
+    "lon": 31.3248862
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "secondary",
+    "layer": "1",
+    "name": "كوبرى الشهيد هشام بركات",
+    "name:ar": "كوبرى الشهيد هشام بركات",
+    "name:en": "Al Shahid Hesham Barakat Bridge",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 819350918,
+  "center": {
+    "lat": 30.0848913,
+    "lon": 31.3244132
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "lit": "yes",
+    "motorcycle": "no",
+    "name": "كوبرى الميرغني الجديد",
+    "name:ar": "كوبرى الميرغني الجديد",
+    "name:en": "Al Merghany Al Gadid Bridge",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 819350919,
+  "center": {
+    "lat": 30.0849663,
+    "lon": 31.3244531
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "lit": "yes",
+    "motorcycle": "no",
+    "name": "كوبرى الميرغني الجديد",
+    "name:ar": "كوبرى الميرغني الجديد",
+    "name:en": "Al Merghany Al Gadid Bridge",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 819350920,
+  "center": {
+    "lat": 30.0843476,
+    "lon": 31.3264877
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "lit": "yes",
+    "motorcycle": "no",
+    "name": "كوبرى الميرغني الجديد",
+    "name:ar": "كوبرى الميرغني الجديد",
+    "name:en": "Al Merghany Al Gadid Bridge",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 819350921,
+  "center": {
+    "lat": 30.0842596,
+    "lon": 31.3265033
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "lit": "yes",
+    "motorcycle": "no",
+    "name": "كوبرى الميرغني الجديد",
+    "name:ar": "كوبرى الميرغني الجديد",
+    "name:en": "Al Merghany Al Gadid Bridge",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 850839741,
+  "center": {
+    "lat": 30.0558001,
+    "lon": 31.3575362
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 850839742,
+  "center": {
+    "lat": 30.0558933,
+    "lon": 31.3575181
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 850927447,
+  "center": {
+    "lat": 30.0537970,
+    "lon": 31.3383466
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 850927454,
+  "center": {
+    "lat": 30.0545578,
+    "lon": 31.3462151
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "maxweight:signed": "no",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 850927455,
+  "center": {
+    "lat": 30.0546497,
+    "lon": 31.3462057
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "maxweight:signed": "no",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 850927456,
+  "center": {
+    "lat": 30.0544830,
+    "lon": 31.3444385
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 850927457,
+  "center": {
+    "lat": 30.0543317,
+    "lon": 31.3444946
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "oneway": "yes",
+    "surface": "asphalt"
+  }
+},
+{
+  "type": "way",
+  "id": 850971992,
+  "center": {
+    "lat": 30.0524827,
+    "lon": 31.3272391
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 850971993,
+  "center": {
+    "lat": 30.0525751,
+    "lon": 31.3272376
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 858935303,
+  "center": {
+    "lat": 30.0620746,
+    "lon": 31.3374030
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "tertiary",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 858935304,
+  "center": {
+    "lat": 30.0621672,
+    "lon": 31.3373867
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "tertiary",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 858935310,
+  "center": {
+    "lat": 30.0629370,
+    "lon": 31.3450403
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "tertiary",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 858935311,
+  "center": {
+    "lat": 30.0630911,
+    "lon": 31.3465420
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "tertiary",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 858935312,
+  "center": {
+    "lat": 30.0630276,
+    "lon": 31.3450185
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "tertiary",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 858935313,
+  "center": {
+    "lat": 30.0628690,
+    "lon": 31.3435962
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "tertiary",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 858935315,
+  "center": {
+    "lat": 30.0631922,
+    "lon": 31.3465236
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "tertiary",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 859389527,
+  "center": {
+    "lat": 30.0465852,
+    "lon": 31.3561847
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "name": "كوبرى مسجد السلام",
+    "name:ar": "كوبرى مسجد السلام",
+    "name:en": "Al Salam Mosque Bridge",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 859389528,
+  "center": {
+    "lat": 30.0464936,
+    "lon": 31.3561981
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "name": "كوبرى مسجد السلام",
+    "name:ar": "كوبرى مسجد السلام",
+    "name:en": "Al Salam Mosque Bridge",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 886672189,
+  "center": {
+    "lat": 30.0448455,
+    "lon": 31.3077897
+  },
+  "tags": {
+    "alt_name": "محور المشير طنطاوى",
+    "alt_name:en": "Al Moshir Tantawy Axis",
+    "bridge": "yes",
+    "destination": "المقطم; الطريق الدائرى; طريق السخنة; القاهرة الجديدة",
+    "destination:lang:en": "Mokattam; Ring Road; AL Sukhna Road; New Cairo",
+    "foot": "no",
+    "highway": "trunk",
+    "layer": "1",
+    "lit": "yes",
+    "maxspeed": "60",
+    "name": "كوبرى الشهيد النقيب احمد حافظ شوشة",
+    "name:ar": "كوبرى الشهيد النقيب احمد حافظ شوشة",
+    "name:en": "Al Shahid Al Naqib Ahmed Hafez Shousha Bridge",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 886672190,
+  "center": {
+    "lat": 30.0448411,
+    "lon": 31.3079525
+  },
+  "tags": {
+    "alt_name": "محور المشير طنطاوى",
+    "alt_name:en": "Al Moshir Tantawy Axis",
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "trunk",
+    "layer": "1",
+    "lit": "yes",
+    "maxspeed": "80",
+    "name": "كوبرى الشهيد النقيب احمد حافظ شوشة",
+    "name:ar": "كوبرى الشهيد النقيب احمد حافظ شوشة",
+    "name:en": "Al Shahid Al Naqib Ahmed Hafez Shousha Bridge",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 920075574,
+  "center": {
+    "lat": 30.0580072,
+    "lon": 31.3263503
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "secondary",
+    "lanes": "3",
+    "layer": "1",
+    "name": "كوبرى التأمين الصحى",
+    "name:ar": "كوبرى التأمين الصحى",
+    "name:en": "Al Ta'men Al Sihi Bridge",
+    "oneway": "yes",
+    "surface": "asphalt"
+  }
+},
+{
+  "type": "way",
+  "id": 921261839,
+  "center": {
+    "lat": 30.0579944,
+    "lon": 31.3262379
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "secondary",
+    "layer": "1",
+    "name": "كوبرى التأمين الصحى",
+    "name:ar": "كوبرى التأمين الصحى",
+    "name:en": "Al Ta'men Al Sihi Bridge",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 923101132,
+  "center": {
+    "lat": 30.0475472,
+    "lon": 31.3656371
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "name": "كوبري احمد الزمر",
+    "name:ar": "كوبري احمد الزمر",
+    "name:en": "Ahmed Al Zomor Bridge",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 923101133,
+  "center": {
+    "lat": 30.0476404,
+    "lon": 31.3656243
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "name": "كوبري احمد الزمر",
+    "name:ar": "كوبري احمد الزمر",
+    "name:en": "Ahmed Al Zomor Bridge",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 923342320,
+  "center": {
+    "lat": 30.0610511,
+    "lon": 31.3082180
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "secondary",
+    "layer": "2",
+    "lit": "yes",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 923342322,
+  "center": {
+    "lat": 30.0610836,
+    "lon": 31.3082981
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "secondary",
+    "layer": "2",
+    "lit": "yes",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 939250970,
+  "center": {
+    "lat": 30.0699580,
+    "lon": 31.3504947
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "trunk_link",
+    "layer": "1",
+    "lit": "yes",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 939250972,
+  "center": {
+    "lat": 30.0706177,
+    "lon": 31.3499779
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "trunk",
+    "lanes": "2",
+    "layer": "1",
+    "maxspeed": "60",
+    "name": "كوبرى دكتور كمال الجنزوري",
+    "name:ar": "كوبرى دكتور كمال الجنزوري",
+    "name:en": "Doctor Kamal Al Ganzoury Bridge",
+    "oneway": "yes",
+    "surface": "asphalt"
+  }
+},
+{
+  "type": "way",
+  "id": 939250973,
+  "center": {
+    "lat": 30.0696255,
+    "lon": 31.3465100
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "شارع حسن مأمون;طريق السويس",
+    "destination:lang:en": "Hassan Mamoun Street;Suez Road",
+    "foot": "no",
+    "highway": "trunk",
+    "lanes": "2",
+    "layer": "1",
+    "maxspeed": "60",
+    "name": "كوبرى دكتور كمال الجنزوري",
+    "name:ar": "كوبرى دكتور كمال الجنزوري",
+    "name:en": "Doctor Kamal Al Ganzoury Bridge",
+    "oneway": "yes",
+    "surface": "asphalt"
+  }
+},
+{
+  "type": "way",
+  "id": 939250974,
+  "center": {
+    "lat": 30.0713101,
+    "lon": 31.3521232
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "trunk",
+    "lanes": "2",
+    "layer": "1",
+    "maxspeed": "60",
+    "name": "كوبرى دكتور كمال الجنزوري",
+    "name:ar": "كوبرى دكتور كمال الجنزوري",
+    "name:en": "Doctor Kamal Al Ganzoury Bridge",
+    "oneway": "yes",
+    "surface": "asphalt"
+  }
+},
+{
+  "type": "way",
+  "id": 939250975,
+  "center": {
+    "lat": 30.0722855,
+    "lon": 31.3555770
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "شارع النزهة;طريق النصر;شارع عباس العقاد;شارع مكرم عبيد",
+    "destination:lang:en": "Nozha Street;Nasr Road;Abbas AL Akkad Street;Makram Abeed Street",
+    "foot": "no",
+    "highway": "trunk",
+    "lanes": "2",
+    "layer": "1",
+    "maxspeed": "60",
+    "name": "كوبرى دكتور كمال الجنزوري",
+    "name:ar": "كوبرى دكتور كمال الجنزوري",
+    "name:en": "Doctor Kamal Al Ganzoury Bridge",
+    "oneway": "yes",
+    "surface": "asphalt"
+  }
+},
+{
+  "type": "way",
+  "id": 939250977,
+  "center": {
+    "lat": 30.0701068,
+    "lon": 31.3499319
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "شارع النزهة; طريق النصر",
+    "destination:lang:en": "Nozha Street; Nasr Road",
+    "foot": "no",
+    "highway": "trunk_link",
+    "layer": "1",
+    "lit": "yes",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 963933586,
+  "center": {
+    "lat": 30.0406815,
+    "lon": 31.3134373
+  },
+  "tags": {
+    "alt_name": "محور الفردوس",
+    "alt_name:en": "Al Fardous Axis",
+    "bridge": "yes",
+    "destination": "محور المشير;القاهرة الجديدة",
+    "destination:lang:en": "Al Moshir Axis;New Cairo",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "lit": "yes",
+    "maxspeed": "80",
+    "name": "محور جيهان السادات",
+    "name:ar": "محور جيهان السادات",
+    "name:en": "Ghehan Al Sadat Axis",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 963933587,
+  "center": {
+    "lat": 30.0410969,
+    "lon": 31.3154208
+  },
+  "tags": {
+    "alt_name": "محور الفردوس",
+    "alt_name:en": "Al Fardous Axis",
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "lit": "yes",
+    "maxspeed": "80",
+    "name": "محور جيهان السادات",
+    "name:ar": "محور جيهان السادات",
+    "name:en": "Ghehan Al Sadat Axis",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 963933590,
+  "center": {
+    "lat": 30.0410224,
+    "lon": 31.3062832
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "محور جيهان السادات;وسط المدينة;شارع أحمد سعيد;شارع صلاح سالم",
+    "destination:lang:en": "Jehan Sadat Axis;Down Town;Ahmed Said Street;Salah Salem Street",
+    "foot": "no",
+    "highway": "trunk_link",
+    "layer": "1",
+    "lit": "yes",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 963933591,
+  "center": {
+    "lat": 30.0398793,
+    "lon": 31.3064862
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "trunk_link",
+    "layer": "1",
+    "lit": "yes",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 963933592,
+  "center": {
+    "lat": 30.0395360,
+    "lon": 31.3077609
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "شارع أحمد سعيد;شارع صلاح سالم",
+    "destination:lang:en": "Ahmed Said Street;Salah Salem Street",
+    "foot": "no",
+    "highway": "trunk_link",
+    "layer": "1",
+    "lit": "yes",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 969742184,
+  "center": {
+    "lat": 30.0422965,
+    "lon": 31.3240562
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary_link",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 969742185,
+  "center": {
+    "lat": 30.0429100,
+    "lon": 31.3234779
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary_link",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 974618998,
+  "center": {
+    "lat": 30.0468538,
+    "lon": 31.3650905
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "tertiary_link",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 974619004,
+  "center": {
+    "lat": 30.0486534,
+    "lon": 31.3668939
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "tertiary_link",
+    "layer": "1",
+    "oneway": "no"
+  }
+},
+{
+  "type": "way",
+  "id": 996081498,
+  "center": {
+    "lat": 30.0403952,
+    "lon": 31.3085434
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "trunk_link",
+    "layer": "1",
+    "lit": "yes",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 1098231484,
+  "center": {
+    "lat": 30.0615554,
+    "lon": 31.3078810
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "secondary",
+    "layer": "1",
+    "lit": "yes",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 1337933345,
+  "center": {
+    "lat": 30.0722795,
+    "lon": 31.3026636
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "secondary",
+    "layer": "1",
+    "lit": "yes",
+    "maxspeed": "60",
+    "name": "شارع اسماعيل الفنجري",
+    "name:ar": "شارع اسماعيل الفنجري",
+    "name:en": "Ismail Al Fangary Street",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 1337933346,
+  "center": {
+    "lat": 30.0723130,
+    "lon": 31.3027480
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "secondary",
+    "layer": "1",
+    "lit": "yes",
+    "name": "شارع اسماعيل الفنجري",
+    "name:ar": "شارع اسماعيل الفنجري",
+    "name:en": "Ismail Al Fangary Street",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 1339821795,
+  "center": {
+    "lat": 30.0793361,
+    "lon": 31.3398204
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "lit": "yes",
+    "name": "شارع النزهه",
+    "name:ar": "شارع النزهه",
+    "name:en": "Al Nozha Street",
+    "oneway": "yes",
+    "surface": "paved"
+  }
+},
+{
+  "type": "way",
+  "id": 1339821796,
+  "center": {
+    "lat": 30.0793523,
+    "lon": 31.3399340
+  },
+  "tags": {
+    "bridge": "yes",
+    "foot": "no",
+    "highway": "primary",
+    "layer": "1",
+    "lit": "yes",
+    "name": "شارع النزهه",
+    "name:ar": "شارع النزهه",
+    "name:en": "Al Nozha Street",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 1341280670,
+  "center": {
+    "lat": 30.0621362,
+    "lon": 31.3096184
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "طريق النصر; طربق الأوتوستراد; طريق السويس",
+    "destination:lang:en": "Al Nasr Road; Autostrad Road; Suez Road",
+    "foot": "no",
+    "highway": "trunk_link",
+    "layer": "1",
+    "lit": "yes",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 1341280671,
+  "center": {
+    "lat": 30.0618933,
+    "lon": 31.3076879
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "طريق النصر; طربق الأوتوستراد; طريق السويس",
+    "destination:lang:en": "Al Nasr Road; Autostrad Road; Suez Road",
+    "foot": "no",
+    "highway": "trunk_link",
+    "layer": "1",
+    "lit": "yes",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 1365970953,
+  "center": {
+    "lat": 30.0587687,
+    "lon": 31.3026830
+  },
+  "tags": {
+    "bridge": "yes",
+    "destination": "مدينة نصر; مطار القاهرة",
+    "destination:lang:en": "Nasr City; Cairo Airport",
+    "highway": "motorway_link",
+    "layer": "1",
+    "oneway": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 1512882646,
+  "center": {
+    "lat": 30.0762164,
+    "lon": 31.3610250
+  },
+  "tags": {
+    "bridge": "yes",
+    "highway": "tertiary",
+    "layer": "1",
+    "oneway": "yes",
+    "sidewalk": "no"
+  }
+},
+{
+  "type": "way",
+  "id": 1512882647,
+  "center": {
+    "lat": 30.0760354,
+    "lon": 31.3610356
+  },
+  "tags": {
+    "bridge": "yes",
+    "highway": "tertiary",
+    "layer": "1",
+    "oneway": "yes",
+    "sidewalk": "no"
+  }
+}
+
+  ]
+}
