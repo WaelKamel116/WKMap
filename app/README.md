@@ -39,7 +39,7 @@ flutter run                        # with a phone connected over USB (USB debugg
 ```
 
 ## iPhone build (no Mac needed)
-iPhone apps must be built on a Mac, so we use Codemagic's cloud Macs (`codemagic.yaml`).
+iPhone apps must be built on a Mac, so we use Codemagic's cloud Macs (`../codemagic.yaml` at the repo root).
 Bundle id: `eg.caironav.cairoNav`. Trips are saved in the app's Documents folder (Files app > On My iPhone > Cairo Nav > trips).
 1. Put the repo on GitHub/GitLab/Bitbucket (private).
 2. Apple Developer: register the bundle id; App Store Connect: create the app; Users and Access > Integrations: create an API key (App Manager role) and download the .p8.
