@@ -1,7 +1,7 @@
 # Codemagic cloud build (Flutter project is in app/): builds the iPhone app on a Mac in the cloud and sends it
 # to TestFlight. Needs, in Codemagic team settings:
 #   - an App Store Connect API key integration named "CairoNav ASC key"
-# and in App Store Connect: an app record with bundle id eg.caironav.cairoNav.
+# and in App Store Connect: an app record with bundle id com.smarttechsys.caironav.
 workflows:
   ios-testflight:
     name: iPhone build to TestFlight
@@ -16,7 +16,7 @@ workflows:
       cocoapods: default
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: eg.caironav.cairoNav
+        bundle_identifier: com.smarttechsys.caironav
     scripts:
       - name: Get packages
         script: flutter pub get

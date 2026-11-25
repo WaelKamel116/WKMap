@@ -1,4 +1,4 @@
-package eg.caironav.cairo_nav
+package com.smarttechsys.caironav
 
 import io.flutter.embedding.android.FlutterActivity
 

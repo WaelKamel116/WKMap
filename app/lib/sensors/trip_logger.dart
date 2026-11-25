@@ -9,7 +9,7 @@ import 'drive_source.dart';
 /// real drive can be replayed and the detector tuned afterwards.
 ///
 /// Files go to the app's external files folder, which you can copy over USB:
-/// Android/data/eg.caironav.cairo_nav/files/trips/
+/// Android/data/com.smarttechsys.caironav/files/trips/
 class TripLogger {
   IOSink? _sink;
   File? file;

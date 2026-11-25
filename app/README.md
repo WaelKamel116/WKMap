@@ -9,7 +9,7 @@ Proves the core idea on a real phone: **is the car up on the flyover or on the r
   - **Simulated**: drives the El Nasr Road demo route with fake GPS (about 4 m error) and fake barometer noise. Works anywhere, including at a desk.
   - **Live GPS**: real GPS at 1 Hz plus the phone's barometer. Keeps running with the screen off (shows a notification).
 - **Record**: writes every GPS fix, barometer reading and level decision to a CSV file, so a real drive can be replayed and the detector tuned.
-  Files: `Android/data/eg.caironav.cairo_nav/files/trips/` (copy them over USB).
+  Files: `Android/data/com.smarttechsys.caironav/files/trips/` (copy them over USB).
 
 ## How the detector works (`lib/nav/level_detector.dart`)
 1. Map matching: find the road segments that fit the GPS position and heading.
@@ -40,7 +40,7 @@ flutter run                        # with a phone connected over USB (USB debugg
 
 ## iPhone build (no Mac needed)
 iPhone apps must be built on a Mac, so we use Codemagic's cloud Macs (`../codemagic.yaml` at the repo root).
-Bundle id: `eg.caironav.cairoNav`. Trips are saved in the app's Documents folder (Files app > On My iPhone > Cairo Nav > trips).
+Bundle id: `com.smarttechsys.caironav`. Trips are saved in the app's Documents folder (Files app > On My iPhone > Cairo Nav > trips).
 1. Put the repo on GitHub/GitLab/Bitbucket (private).
 2. Apple Developer: register the bundle id; App Store Connect: create the app; Users and Access > Integrations: create an API key (App Manager role) and download the .p8.
 3. Codemagic: sign up, add the repo, Team settings > Integrations > App Store Connect: add the key with the name `CairoNav ASC key`.
