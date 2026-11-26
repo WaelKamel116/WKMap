@@ -70,7 +70,7 @@ class MatchData {
         if (!ok) continue;
       }
       final h = l.heights[ref.seg] + (l.heights[ref.seg + 1] - l.heights[ref.seg]) * hit.t;
-      out.add(Candidate(l, hit.distance, h));
+      out.add(Candidate(l, hit.distance, h, hit.point, hit.bearing));
     }
     out.sort((a, b) => a.distance.compareTo(b.distance));
     return out;
@@ -86,5 +86,7 @@ class Candidate {
   final MatchLine line;
   final double distance;
   final double height; // deck height at the matched point (0 on the ground)
-  const Candidate(this.line, this.distance, this.height);
+  final Vec point; // the matched point on the road centreline
+  final double bearing; // direction of the road segment (drawing direction)
+  const Candidate(this.line, this.distance, this.height, this.point, this.bearing);
 }

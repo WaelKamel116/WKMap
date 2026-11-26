@@ -44,7 +44,8 @@ class SegmentHit {
   final double distance; // metres from the point to the segment
   final double t; // 0..1 position along the segment
   final double bearing; // segment direction
-  const SegmentHit(this.distance, this.t, this.bearing);
+  final Vec point; // closest point on the segment
+  const SegmentHit(this.distance, this.t, this.bearing, this.point);
 }
 
 SegmentHit projectOnSegment(Vec p, Vec a, Vec b) {
@@ -53,5 +54,5 @@ SegmentHit projectOnSegment(Vec p, Vec a, Vec b) {
   var t = len2 == 0 ? 0.0 : (p - a).dot(ab) / len2;
   t = t.clamp(0.0, 1.0);
   final q = a + ab * t;
-  return SegmentHit((p - q).length, t, Geo.bearing(a, b));
+  return SegmentHit((p - q).length, t, Geo.bearing(a, b), q);
 }

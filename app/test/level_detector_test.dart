@@ -22,18 +22,25 @@ MatchData stacked() {
 
 List<double> ll(double x, double y) => Geo.toLonLat(Vec(x, y));
 
+/// Simulated clock: the barometer reports every 100 ms (10 Hz).
+var _clock = DateTime(2026);
+void baro(LevelDetector d, double hPa) {
+  _clock = _clock.add(const Duration(milliseconds: 100));
+  d.addPressure(hPa, at: _clock);
+}
+
 /// Learn ground pressure on a street with no flyover nearby.
 void learnBaseline(LevelDetector d, double groundHpa) {
   for (var i = 0; i < 30; i++) {
-    d.addPressure(groundHpa);
+    baro(d, groundHpa);
     final p = ll(-800, 500);
     d.update(p[0], p[1], heading: 90, speed: 10, accuracy: 5);
   }
 }
 
 LevelEstimate drive(LevelDetector d, double x, double y, double hPa) {
-  for (var i = 0; i < 10; i++) {
-    d.addPressure(hPa);
+  for (var i = 0; i < 20; i++) {
+    baro(d, hPa); // 2 s of readings
   }
   final p = ll(x, y);
   return d.update(p[0], p[1], heading: 90, speed: 14, accuracy: 6);
@@ -55,7 +62,7 @@ void main() {
       final e = drive(d, 0, -3, 1012.0 - 7 * hpaPerMetre);
       expect(e.level, RoadLevel.upper);
       expect(e.roadName, 'Test Flyover');
-      // the pressure filter lags by design (about 1 s to reach ~90%), so allow 1 m
+      // the pressure filter lags by design (0.8 s time constant), so allow 1 m
       expect(e.baroHeight!, closeTo(7, 1.0));
     });
 
@@ -110,7 +117,7 @@ void main() {
       final wrongAt = <int>[];
       for (var s = 0.0; s < route.distance; s += 1.5) {
         final p = route.sample(s);
-        d.addPressure(1012.6 - p.height * hpaPerMetre + gauss() * 0.03);
+        baro(d, 1012.6 - p.height * hpaPerMetre + gauss() * 0.03);
         if ((s / 1.5).round() % 10 != 0) continue; // GPS at 1 Hz-ish, barometer 10x faster
         final e = d.update(p.lon + gauss() * 4 / 96400, p.lat + gauss() * 4 / 110540,
             heading: p.heading + gauss() * 3, speed: 15, accuracy: 5);
@@ -143,7 +150,7 @@ void main() {
       // learn the ground pressure at the start of the route (no flyover there)
       for (var s = 0.0; s < 300; s += 15) {
         final p = route.sample(s);
-        d.addPressure(1012.6);
+        baro(d, 1012.6);
         d.update(p.lon, p.lat, heading: p.heading, speed: 15, accuracy: 5);
       }
       // GPS says "on the flyover" but the barometer says ground: e.g. driving the service road under it
@@ -151,7 +158,7 @@ void main() {
       for (var s = 850.0; s < 950; s += 15) {
         final p = route.sample(s);
         for (var i = 0; i < 10; i++) {
-          d.addPressure(1012.6);
+          baro(d, 1012.6);
         }
         e = d.update(p.lon, p.lat, heading: p.heading, speed: 15, accuracy: 12);
       }

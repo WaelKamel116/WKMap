@@ -1,7 +1,7 @@
 """Download OpenStreetMap data for an area from Overpass (with retries).
 
-Usage: python tools/fetch_area.py raw/cfc  S W N E
-Writes roads.json, areas.json, buildings.json into the folder.
+Usage: python tools/fetch_area.py raw/cfc  S W N E [--only signs.json]
+Writes roads.json, areas.json, buildings.json and signs.json into the folder.
 """
 import json
 import sys
@@ -10,6 +10,7 @@ import urllib.parse
 import urllib.request
 
 out, s, w, n, e = sys.argv[1], *sys.argv[2:6]
+only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None
 bbox = f"{s},{w},{n},{e}"
 QUERIES = {
     "roads.json": f"""[out:json][timeout:180];
@@ -26,10 +27,19 @@ out geom;""",
     "buildings.json": f"""[out:json][timeout:240];
 (way["building"]({bbox}); relation["building"]({bbox}););
 out geom;""",
+    # road signs and markings mapped as points: stop, give way, crossings, speed cameras, sign codes
+    "signs.json": f"""[out:json][timeout:180];
+(node["highway"~"^(stop|give_way|crossing|speed_camera|traffic_signals)$"]({bbox});
+ node["traffic_sign"]({bbox});
+ node["enforcement"]({bbox});
+ node["crossing"]({bbox}););
+out;""",
 }
 SERVERS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"]
 
 for name, q in QUERIES.items():
+    if only and name != only:
+        continue
     for attempt in range(8):
         url = SERVERS[attempt % len(SERVERS)]
         try:

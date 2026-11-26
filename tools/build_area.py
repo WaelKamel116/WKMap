@@ -104,7 +104,14 @@ CLASS = {"motorway": "major", "trunk": "major", "primary": "major", "secondary":
          "motorway_link": "link", "trunk_link": "link", "primary_link": "link", "secondary_link": "link",
          "tertiary_link": "link", "residential": "minor", "unclassified": "minor", "living_street": "minor",
          "service": "service"}
-DEFAULT_LANES = {"major": 3, "medium": 2, "link": 1, "minor": 1, "service": 1}
+# lanes when OSM has no lanes tag: (one-way, two-way). Two-way counts both directions,
+# like the OSM lanes tag does.
+DEFAULT_LANES = {"major": (3, 6), "medium": (2, 4), "link": (1, 2), "minor": (1, 2), "service": (1, 1)}
+
+
+def road_width(cls, l, ow):
+    """Carriageway width in metres; the app draws roads with the same rule."""
+    return max(l * 3.3 + (0.8 if ow else 1.6), {"minor": 5.0, "link": 4.5, "service": 3.5}.get(cls, 6.0))
 
 
 def lanes_of(t, cls):
@@ -137,8 +144,9 @@ for w in ways.values():
     if cls in ("minor", "service") and not any(near_route(c, args.corridor + 150) for c in g[:: max(1, len(g) // 4)] + [g[-1]]):
         report["roads: small streets outside corridor"] += 1
         continue
-    ground_roads.append({"type": "Feature", "properties": {"c": cls, "n": name_of(t), "l": lanes or DEFAULT_LANES[cls],
-                                                           "ow": 1 if t.get("oneway") == "yes" else 0},
+    ow = 1 if t.get("oneway") == "yes" else 0
+    ground_roads.append({"type": "Feature", "properties": {"c": cls, "n": name_of(t), "l": lanes or DEFAULT_LANES[cls][1 - ow],
+                                                           "ow": ow},
                          "geometry": {"type": "LineString", "coordinates": g}})
 report["roads: kept ground"] = len(ground_roads)
 report["roads: flyover/bridge pieces"] = len(bridge_ways)
@@ -468,6 +476,123 @@ if os.path.exists(msb):
             hit += 1
     report["check: Microsoft footprints covered after merge %"] = round(100 * hit / max(tot, 1), 1)
 
+# ------------------------------------------------------------------ road signs
+# Placed where a driver would see them: beside the road on the right of the travel direction.
+#   speed-NN  posted limit (OSM maxspeed): near the start of each road piece, repeated every 700 m
+#   name      street-name plate (Arabic + English) for main roads, about every 450 m
+#   camera    speed camera, crossing = marked zebra crossing, signal = traffic light (OSM nodes)
+def point_along(g, s_at):
+    """Point and compass bearing s_at metres along a lon/lat polyline."""
+    run = 0.0
+    for a, b in zip(g, g[1:]):
+        d = dist(a, b)
+        if d > 0 and run + d >= s_at:
+            f = (s_at - run) / d
+            return [a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1])], bearing(a, b)
+        run += d
+    return None, None
+
+
+def beside(p, brg, off):
+    x, y = xy(p)
+    r = math.radians(brg)
+    return ll(x + math.cos(r) * off, y - math.sin(r) * off)
+
+
+def poly_len(g): return sum(dist(a, b) for a, b in zip(g, g[1:]))
+
+
+signs, names, name_ix, placed = [], [], {}, []
+
+
+def far_from(kind, p, brg, gap):
+    for k, q, b in placed:
+        if k == kind and dist(p, q) < gap and (brg is None or b is None or abs((brg - b + 180) % 360 - 180) < 60):
+            return False
+    return True
+
+
+def add_sign(kind, p, brg=None, gap=0, **extra):
+    if gap and not far_from(kind, p, brg, gap):
+        return
+    placed.append((kind, p, brg))
+    signs.append({"type": "Feature", "properties": {"k": kind, **extra}, "geometry": {"type": "Point", "coordinates": r6(p)}})
+
+
+for w in ways.values():
+    t = w["tags"]; cls = CLASS.get(t["highway"])
+    if cls not in ("major", "medium", "link") or t.get("tunnel") not in (None, "no"):
+        continue
+    g = [r6([q["lon"], q["lat"]]) for q in w["geometry"]]
+    ow = t.get("oneway") == "yes"
+    lanes = lanes_of(t, cls) or DEFAULT_LANES[cls][0 if ow else 1]
+    half = road_width(cls, lanes, ow) / 2
+    L = poly_len(g)
+    if L < 30:
+        continue
+    dirs = [g] if ow else [g, g[::-1]]
+    ms = str(t.get("maxspeed", "")).split()[0] if t.get("maxspeed") else ""
+    nm_en, nm_ar = t.get("name:en", ""), t.get("name", "")
+    for gg in dirs:
+        if ms.isdigit():
+            s_at = min(25.0, L / 2)
+            while s_at < L:
+                p, b = point_along(gg, s_at)
+                add_sign(f"speed-{ms}", beside(p, b, half + 1.8), b, gap=300)
+                s_at += 700
+        if (nm_en or nm_ar) and cls != "link" and t.get("bridge") in (None, "no"):
+            key = nm_en or nm_ar
+            s_at = min(60.0, L / 2)
+            while s_at < L:
+                p, b = point_along(gg, s_at)
+                pos = beside(p, b, half + 2.5)
+                if far_from("name:" + key, pos, b, 450):
+                    if key not in name_ix:
+                        name_ix[key] = len(names)
+                        names.append([nm_en, nm_ar if nm_ar != nm_en else ""])
+                    add_sign("name:" + key, pos, b)
+                    signs[-1]["properties"] = {"k": "name", "ni": name_ix[key]}
+                s_at += 450
+
+spath = os.path.join(RAW, "signs.json")
+if os.path.exists(spath):
+    for e in load(spath)["elements"]:
+        t = e.get("tags", {})
+        p = [e["lon"], e["lat"]]
+        if t.get("highway") == "speed_camera" or t.get("enforcement") in ("maxspeed", "average_speed"):
+            add_sign("camera", p, gap=15)
+        elif t.get("highway") == "crossing" and t.get("crossing") in ("marked", "zebra", "traffic_signals", "uncontrolled"):
+            add_sign("crossing", p, gap=15)
+        elif t.get("highway") == "stop":
+            add_sign("stop", p)
+        elif t.get("highway") == "give_way":
+            add_sign("give_way", p)
+for f in signals:
+    add_sign("signal", f["geometry"]["coordinates"])
+for k, v in Counter(f["properties"]["k"].split("-")[0] for f in signs).items():
+    report[f"signs: {k}"] = v
+
+# ------------------------------------------------------------------ search index (offline)
+# Overture places in the box plus one point per named main road, for the app's search box.
+search = []
+ppath = os.path.join(RAW, "overture_places.json")
+if os.path.exists(ppath):
+    for pl in load(ppath):
+        if pl.get("name"):
+            search.append([pl["name"], pl.get("cat") or "", round(pl["lon"], 6), round(pl["lat"], 6)])
+road_pts = {}
+for f in ground_roads:
+    pr = f["properties"]
+    if pr["n"] and pr["c"] in ("major", "medium"):
+        g = f["geometry"]["coordinates"]
+        L = poly_len(g)
+        if L > road_pts.get(pr["n"], (0, None))[0]:
+            road_pts[pr["n"]] = (L, point_along(g, L / 2)[0])
+for n, (L, p) in road_pts.items():
+    if p:
+        search.append([n, "road", round(p[0], 6), round(p[1], 6)])
+report["search: places and roads"] = len(search)
+
 # ------------------------------------------------------------------ write
 print("writing to", OUT)
 dump("route.json", {"coords": [[c[0], c[1]] for c in rd], "elev": rel, "cum": [round(c, 1) for c in cum],
@@ -486,6 +611,8 @@ for w, g, cls, lanes, layer in bridge_ways:
 match_ground = [{"name": f["properties"]["n"], "oneway": f["properties"]["ow"], "c": f["geometry"]["coordinates"]}
                 for f in ground_roads if f["properties"]["c"] in ("major", "medium", "link")]
 dump("match.json", {"bridges": match_bridges, "ground": match_ground})
+dump("signs.json", {"signs": fc(signs), "names": names})
+dump("places.json", {"places": search})
 dump("sources.json", {"report": dict(report), "attribution": [
     "Map data (c) OpenStreetMap contributors, ODbL",
     "Overture Maps Foundation (buildings, places): ODbL / CDLA-Permissive-2.0 / CC BY 4.0 per source",

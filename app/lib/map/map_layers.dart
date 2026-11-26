@@ -6,6 +6,8 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../geo/geo.dart';
 import '../nav/route_data.dart';
+import '../nav/routing.dart';
+import 'sign_icons.dart';
 
 /// Map looks the driver can switch between.
 enum MapTheme { night, day, game }
@@ -61,8 +63,10 @@ String baseStyle([MapTheme theme = MapTheme.night]) =>
     '{"version":8,"sources":{},"layers":[{"id":"bg","type":"background","paint":{"background-color":"${MapPalette.of(theme).ground}"}}]}';
 
 /// Width in metres that stays true to scale at every zoom.
+/// MapLibre tiles are 512 px, so one screen pixel at zoom z covers
+/// 78271.5 * cos(lat) / 2^z metres.
 dynamic metres(dynamic m) {
-  final mpp = 156543.03 * math.cos(30.07 * math.pi / 180);
+  final mpp = 78271.517 * math.cos(30.07 * math.pi / 180);
   return [
     'interpolate', ['exponential', 2], ['zoom'],
     12, ['*', m, 4096 / mpp],
@@ -70,16 +74,19 @@ dynamic metres(dynamic m) {
   ];
 }
 
+/// Carriageway width in metres: 3.3 m per lane plus edges (l = lanes from
+/// OSM, or a default per road class; same rule as tools/build_area.py).
 const _roadW = [
-  'case',
-  ['==', ['get', 'c'], 'minor'], 7,
-  ['==', ['get', 'c'], 'link'], ['max', ['*', ['get', 'l'], 3.4], 4.5],
-  ['==', ['get', 'ow'], 1], ['+', ['*', ['get', 'l'], 3.4], 0.6],
-  ['max', ['*', ['get', 'l'], 3.4], 7],
+  'max',
+  ['+', ['*', ['get', 'l'], 3.3], ['case', ['==', ['get', 'ow'], 1], 0.8, 1.6]],
+  ['match', ['get', 'c'], 'minor', 5.0, 'link', 4.5, 'service', 3.5, 6.0],
 ];
 
 /// Layers that the "Traffic lights" switch shows and hides.
 const signalLayers = ['signals', 'signal-glow', 'signal-3d'];
+
+/// Layers that the "Road signs" switch shows and hides.
+const signLayers = ['road-signs', 'street-names'];
 
 Future<Map<String, dynamic>> _asset(String name) async =>
     jsonDecode(await rootBundle.loadString('assets/data/$name')) as Map<String, dynamic>;
@@ -126,22 +133,14 @@ Future<List<List<double>>> addCityLayers(MapLibreMapController c, RouteData rout
   await c.addGeoJsonSource('pillars', bridges['pillars'] as Map<String, dynamic>);
   await c.addGeoJsonSource('buildings', buildings);
   await c.addGeoJsonSource('signals', ground['signals'] as Map<String, dynamic>);
-  await c.addGeoJsonSource('route-ground', {
-    'type': 'Feature', 'properties': {},
-    'geometry': {'type': 'MultiLineString', 'coordinates': route.groundParts()},
-  });
-  final ribbon = <Map<String, dynamic>>[];
-  for (var i = 0; i < route.coords.length - 1; i++) {
-    if (math.max(route.elev[i], route.elev[i + 1]) < 0.5) continue;
-    final h = (route.elev[i] + route.elev[i + 1]) / 2;
-    ribbon.add({
-      'type': 'Feature', 'properties': {'b': math.max(h - 0.02, 0), 't': h + 0.22},
-      'geometry': {'type': 'Polygon', 'coordinates': [_quad(route.coords[i], route.coords[i + 1], 2.6)]},
-    });
-  }
-  await c.addGeoJsonSource('route-ribbon', {'type': 'FeatureCollection', 'features': ribbon});
-  await c.addGeoJsonSource('me', {'type': 'FeatureCollection', 'features': <dynamic>[]});
-  await c.addGeoJsonSource('puck', {'type': 'FeatureCollection', 'features': <dynamic>[]});
+  await c.addGeoJsonSource('route-ground', routeGroundGeoJson(route));
+  await c.addGeoJsonSource('route-ribbon', routeRibbonGeoJson(route));
+  await c.addGeoJsonSource('route-alts', _empty);
+  await c.addGeoJsonSource('route-traffic', _empty);
+  final signs = await _asset('signs.json');
+  await c.addGeoJsonSource('signs', signs['signs'] as Map<String, dynamic>);
+  await c.addGeoJsonSource('me', _empty);
+  await c.addGeoJsonSource('puck', _empty);
   if (game) {
     await c.addGeoJsonSource('signal-pts', signalGlowGeoJson(signalPts, 0));
     await c.addGeoJsonSource('signal-3d', signals3dGeoJson(signalPts, 0));
@@ -161,9 +160,17 @@ Future<List<List<double>>> addCityLayers(MapLibreMapController c, RouteData rout
   for (var k = 1; k <= 4; k++) {
     await c.addLineLayer('roads', 'lane-$k', LineLayerProperties(
       lineColor: pal.lane, lineDasharray: const [3, 4], lineWidth: metres(game ? 0.35 : 0.25),
-      lineOffset: metres(['*', ['-', k, ['/', ['get', 'l'], 2]], 3.4]),
+      lineOffset: metres(['*', ['-', k, ['/', ['get', 'l'], 2]], 3.3]),
     ), minzoom: 15.5, filter: ['all', ['==', ['get', 'ow'], 1], ['>', ['get', 'l'], k], ['in', ['get', 'c'], ['literal', ['major', 'medium']]]]);
   }
+  if (hasTraffic) {
+    // live traffic speed on every road (TomTom tiles, green = free flow .. red = jammed)
+    await c.addSource('traffic-flow', RasterSourceProperties(tiles: [trafficTileUrl], tileSize: 256));
+    await c.addRasterLayer('traffic-flow', 'traffic-flow', const RasterLayerProperties(rasterOpacity: 0.8), minzoom: 11);
+  }
+  // other route choices while the driver picks one
+  await c.addLineLayer('route-alts', 'route-alts', LineLayerProperties(
+      lineColor: theme == MapTheme.day ? '#8E9AAD' : '#7D8AA0', lineWidth: metres(5), lineOpacity: 0.75, lineCap: 'round', lineJoin: 'round'));
   if (game) {
     await c.addLineLayer('route-ground', 'route-glow', LineLayerProperties(
         lineColor: pal.route, lineWidth: metres(16), lineBlur: metres(8), lineOpacity: 0.45, lineCap: 'round', lineJoin: 'round'));
@@ -172,6 +179,10 @@ Future<List<List<double>>> addCityLayers(MapLibreMapController c, RouteData rout
       lineColor: pal.routeCasing, lineWidth: metres(6.4), lineCap: 'round', lineJoin: 'round'));
   await c.addLineLayer('route-ground', 'route', LineLayerProperties(
       lineColor: pal.route, lineWidth: metres(4.6), lineCap: 'round', lineJoin: 'round'));
+  // slow stretches on the chosen route (only with live traffic)
+  await c.addLineLayer('route-traffic', 'route-traffic', LineLayerProperties(
+      lineColor: const ['match', ['get', 'm'], 1, '#FFB020', 2, '#FF7A1A', 3, '#E8262B', '#8B0F14'],
+      lineWidth: metres(4.6), lineCap: 'round', lineJoin: 'round'));
   if (game) {
     // glow of each traffic light on the road surface, in its current colour
     await c.addCircleLayer('signal-pts', 'signal-glow', const CircleLayerProperties(
@@ -207,6 +218,7 @@ Future<List<List<double>>> addCityLayers(MapLibreMapController c, RouteData rout
       circleStrokeColor: pal.signalRing, circleStrokeWidth: 1.5, circlePitchAlignment: 'map',
     ), minzoom: 14);
   }
+  await _addSignLayers(c, signs, theme);
   // "my location" dot (used when the car on screen is the simulation)
   await c.addCircleLayer('me', 'me-acc', const CircleLayerProperties(
       circleColor: '#4C8DFF', circleOpacity: 0.18, circleRadius: ['max', 10, ['get', 'r']], circlePitchAlignment: 'map'));
@@ -215,6 +227,83 @@ Future<List<List<double>>> addCityLayers(MapLibreMapController c, RouteData rout
   await c.addFillExtrusionLayer('puck', 'puck', const FillExtrusionLayerProperties(
       fillExtrusionColor: ['get', 'c'], fillExtrusionHeight: ['get', 't'], fillExtrusionBase: ['get', 'b'], fillExtrusionVerticalGradient: false));
   return signalPts;
+}
+
+const _empty = {'type': 'FeatureCollection', 'features': <dynamic>[]};
+
+/// Road signs standing beside the road (they always face the camera).
+Future<void> _addSignLayers(MapLibreMapController c, Map<String, dynamic> signs, MapTheme theme) async {
+  final feats = (signs['signs']['features'] as List);
+  final kinds = <String>{for (final f in feats) f['properties']['k'] as String};
+  for (final k in kinds) {
+    if (k == 'name') continue;
+    final png = k.startsWith('speed-')
+        ? await SignIcons.speed(k.substring(6))
+        : switch (k) {
+            'camera' => await SignIcons.camera(),
+            'crossing' => await SignIcons.crossing(),
+            'signal' => await SignIcons.signal(),
+            'stop' => await SignIcons.stop(),
+            'give_way' => await SignIcons.giveWay(),
+            _ => null,
+          };
+    if (png != null) await c.addImage(k, png);
+  }
+  final names = (signs['names'] as List);
+  for (var i = 0; i < names.length; i++) {
+    await c.addImage('name-$i', await SignIcons.name(i, names[i][0] as String, names[i][1] as String));
+  }
+  const size = ['interpolate', ['linear'], ['zoom'], 15, 0.32, 17, 0.5, 19, 0.8];
+  await c.addSymbolLayer('signs', 'road-signs', SymbolLayerProperties(
+    iconImage: const ['get', 'k'], iconSize: size, iconAnchor: 'bottom', iconAllowOverlap: true, iconIgnorePlacement: true,
+  ), minzoom: 15, filter: [
+    'all', ['!=', ['get', 'k'], 'name'],
+    if (theme == MapTheme.game) ['!=', ['get', 'k'], 'signal'] else true, // the game look has 3D lights
+  ]);
+  await c.addSymbolLayer('signs', 'street-names', const SymbolLayerProperties(
+    iconImage: ['concat', 'name-', ['to-string', ['get', 'ni']]], iconSize: size, iconAnchor: 'bottom', iconPadding: 4,
+  ), minzoom: 15.5, filter: ['==', ['get', 'k'], 'name']);
+}
+
+/// The planned route on the ground (flat line).
+Map<String, dynamic> routeGroundGeoJson(RouteData route) => {
+      'type': 'Feature', 'properties': {},
+      'geometry': {'type': 'MultiLineString', 'coordinates': route.groundParts()},
+    };
+
+/// The planned route where it runs up on a flyover (raised ribbon).
+Map<String, dynamic> routeRibbonGeoJson(RouteData route) {
+  final ribbon = <Map<String, dynamic>>[];
+  for (var i = 0; i < route.coords.length - 1; i++) {
+    if (math.max(route.elev[i], route.elev[i + 1]) < 0.5) continue;
+    final h = (route.elev[i] + route.elev[i + 1]) / 2;
+    ribbon.add({
+      'type': 'Feature', 'properties': {'b': math.max(h - 0.02, 0), 't': h + 0.22},
+      'geometry': {'type': 'Polygon', 'coordinates': [_quad(route.coords[i], route.coords[i + 1], 2.6)]},
+    });
+  }
+  return {'type': 'FeatureCollection', 'features': ribbon};
+}
+
+/// Shows [route] as the active route, with its slow stretches when known,
+/// and [alternatives] in grey (pass none once the driver has chosen).
+Future<void> showRoute(MapLibreMapController c, RouteData route,
+    {List<TrafficStretch> traffic = const [], List<List<List<double>>> alternatives = const []}) async {
+  await c.setGeoJsonSource('route-ground', routeGroundGeoJson(route));
+  await c.setGeoJsonSource('route-ribbon', routeRibbonGeoJson(route));
+  await c.setGeoJsonSource('route-alts', {
+    'type': 'FeatureCollection',
+    'features': [for (final a in alternatives) {'type': 'Feature', 'properties': {}, 'geometry': {'type': 'LineString', 'coordinates': a}}],
+  });
+  final slow = <Map<String, dynamic>>[];
+  for (final t in traffic) {
+    final pts = <List<double>>[];
+    for (var i = 0; i < route.coords.length; i++) {
+      if (route.cum[i] >= t.from && route.cum[i] <= t.to) pts.add(route.coords[i]);
+    }
+    if (pts.length > 1) slow.add({'type': 'Feature', 'properties': {'m': t.level}, 'geometry': {'type': 'LineString', 'coordinates': pts}});
+  }
+  await c.setGeoJsonSource('route-traffic', {'type': 'FeatureCollection', 'features': slow});
 }
 
 /// Light state for signal [i] at second [tick]: each runs its own 30 s cycle.
@@ -247,7 +336,8 @@ Map<String, dynamic> signals3dGeoJson(List<List<double>> pts, int tick) {
 
 /// Car marker raised onto the flyover deck when the detector says we are up
 /// there: a disc with an arrow, or in the game look a small 3D car.
-Map<String, dynamic> puckGeoJson(double lon, double lat, double heading, double height, {MapTheme theme = MapTheme.night}) {
+Map<String, dynamic> puckGeoJson(double lon, double lat, double heading, double height, {MapTheme theme = MapTheme.night, bool hidden = false}) {
+  if (hidden) return _empty;
   final pal = MapPalette.of(theme);
   final c = Geo.toXY(lon, lat);
   final t = heading * math.pi / 180;
@@ -289,7 +379,7 @@ Map<String, dynamic> puckGeoJson(double lon, double lat, double heading, double 
 
 /// "My location" dot with its accuracy circle (radius in pixels at the current zoom is approximate).
 Map<String, dynamic> meGeoJson(double lon, double lat, double accuracyM, double zoom) {
-  final mpp = 156543.03 * math.cos(lat * math.pi / 180) / math.pow(2, zoom);
+  final mpp = 78271.517 * math.cos(lat * math.pi / 180) / math.pow(2, zoom);
   return {
     'type': 'FeatureCollection',
     'features': [

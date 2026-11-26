@@ -15,7 +15,22 @@ Proves the core idea on a real phone: **is the car up on the flyover or on the r
   - **Map options**:
     - Look: **Night** (default), **Day**, or **Game**. Game is a bright arcade look with coloured buildings, white lane paint, yellow kerbs, a glowing route, a small 3D car and 3D traffic lights that cycle green, amber and red. The cycling is for show, not real signal timing.
     - Camera: **3D**, **Close** (low chase camera, the default in Game), or **Top-down** (north up).
-    - Switches for 3D buildings and traffic lights.
+    - Switches for 3D buildings, traffic lights, and road signs with street names.
+- **Camera Inside**: driver's-seat view down the road with a dashboard frame (the car itself is hidden).
+- **Search and route** (magnifier button):
+  - Search: offline index of about 13,600 shops, malls, clinics and main roads on the map, plus online OpenStreetMap results (Photon) for the rest of Cairo.
+  - Routes: up to 3 options, with Fastest / Shortest and Avoid highways. The other options show in grey on the map.
+  - Navigation: turn banner with distance to the next turn, time and distance left, and automatic re-routing after about 5 s off the route. In Simulated mode the simulator drives the chosen route.
+  - Route servers: free Valhalla (OpenStreetMap), with no live traffic. Live traffic (slow stretches coloured on the route, a traffic layer on all roads, traffic delay per option) needs a TomTom key at build time: `flutter build apk --dart-define=TOMTOM_KEY=...`, or the `TOMTOM_KEY` environment variable in Codemagic.
+- **Road signs** stand beside the road, on the right in the direction of travel:
+  - Speed limits (OpenStreetMap maxspeed) and speed cameras.
+  - Marked crossings and traffic lights.
+  - Blue street-name plates in Arabic and English.
+- **Smooth car**: each GPS fix is snapped to the matched road (or the flyover deck when the detector says so). The car glides between fixes at 20 frames a second instead of jumping once a second.
+- **Road width**: drawn at true scale from lane counts (3.3 m per lane). An earlier scale bug drew every road at half its width.
+
+### Replaying a real drive
+`flutter test test/replay_trip_test.dart --dart-define=TRIP_CSV=C:/path/to/capture_.../trip.csv` runs a recorded drive through the level detector and prints when it was on a flyover. Drive logs hold the tester's track: keep them out of the repo.
 
 ## Road capture (internal test mode)
 The camera button next to Record films the road ahead and records the sensor log at the same time.
