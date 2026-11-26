@@ -16,7 +16,11 @@ Proves the core idea on a real phone: **is the car up on the flyover or on the r
     - Look: **Night** (default), **Day**, or **Game**. Game is a bright arcade look with coloured buildings, white lane paint, yellow kerbs, a glowing route, a small 3D car and 3D traffic lights that cycle green, amber and red. The cycling is for show, not real signal timing.
     - Camera: **3D**, **Close** (low chase camera, the default in Game), or **Top-down** (north up).
     - Switches for 3D buildings, traffic lights, and road signs with street names.
-- **Camera Inside**: driver's-seat view down the road with a dashboard frame (the car itself is hidden).
+- **Screen layout** (map first):
+  - Top: a one-line pill showing Ground / On flyover and the road name. While navigating, the next turn shows above it.
+  - Bottom bar: speed, then **Where to?** (search), or while navigating the time left, distance left and arrival time.
+  - Right edge: map options, test tools (flask icon) and my location.
+  - Test tools panel: Simulated / Live GPS, sensor log, road capture, and the detector readings (GPS accuracy, pressure, barometer height, confidence and reason).
 - **Search and route** (magnifier button):
   - Search: offline index of about 13,600 shops, malls, clinics and main roads on the map, plus online OpenStreetMap results (Photon) for the rest of Cairo.
   - Routes: up to 3 options, with Fastest / Shortest and Avoid highways. The other options show in grey on the map.
@@ -51,7 +55,7 @@ Tests: `flutter test` (synthetic stacked roads plus a simulated drive over the r
 
 ## Test drive plan (El Nasr Road)
 1. Use a phone **with a barometer** (most mid- and high-end Android phones; check with a sensor app).
-2. Mount the phone, switch to **Live GPS**, press **Record**.
+2. Mount the phone. In **Test tools** (flask button) switch to **Live GPS** and press **Sensor log** or **Road capture**.
 3. Drive westbound on El Nasr Road from near the Abou Ghazala Bridge. Take the **Ganzoury flyover**, then the **Mamdouh Marei flyover**.
 4. Drive the same stretch again on the **ground road underneath**, keeping right at both forks.
 5. Stop recording and send the two CSV files back for analysis.

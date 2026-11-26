@@ -26,7 +26,6 @@ import 'search_screen.dart';
 enum CamView {
   follow3d('3D', Icons.threed_rotation),
   chase('Close', Icons.directions_car),
-  inside('Inside', Icons.airline_seat_recline_normal),
   top('Top-down', Icons.map_outlined);
 
   const CamView(this.label, this.icon);
@@ -66,7 +65,7 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
   final _smooth = CarSmoother();
   Timer? _frame;
   DateTime _lastFrame = DateTime.now();
-  bool _frameBusy = false, _puckHidden = false;
+  bool _frameBusy = false;
 
   // map display options
   static final _initialStyle = baseStyle();
@@ -163,13 +162,7 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
     try {
       _smooth.step(math.min(dt, 0.2));
       final ll = Geo.toLonLat(_smooth.pos!);
-      if (_view == CamView.inside) {
-        if (!_puckHidden) await c.setGeoJsonSource('puck', puckGeoJson(0, 0, 0, 0, theme: _theme, hidden: true));
-        _puckHidden = true;
-      } else {
-        _puckHidden = false;
-        await c.setGeoJsonSource('puck', puckGeoJson(ll[0], ll[1], _smooth.heading, _smooth.height, theme: _theme));
-      }
+      await c.setGeoJsonSource('puck', puckGeoJson(ll[0], ll[1], _smooth.heading, _smooth.height, theme: _theme));
       if (_follow) await c.moveCamera(CameraUpdate.newCameraPosition(_cameraAt(ll[1], ll[0], _smooth.heading)));
     } catch (_) {
       // style reloading
@@ -184,11 +177,6 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
         return CameraPosition(target: LatLng(lat, lon), zoom: 17.2, tilt: 60, bearing: heading);
       case CamView.chase:
         return CameraPosition(target: LatLng(lat, lon), zoom: 18.4, tilt: 60, bearing: heading);
-      case CamView.inside:
-        // driver's seat: look down the road from just above the car (the car itself is hidden)
-        final r = heading * math.pi / 180;
-        final ahead = Geo.toLonLat(Geo.toXY(lon, lat) + Vec(math.sin(r), math.cos(r)) * 22);
-        return CameraPosition(target: LatLng(ahead[1], ahead[0]), zoom: 19.6, tilt: 60, bearing: heading);
       case CamView.top:
         return CameraPosition(target: LatLng(lat, lon), zoom: 16.3, tilt: 0, bearing: 0);
     }
@@ -206,7 +194,6 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
     }
     if (theme != _theme) return;
     _styleReady = true;
-    _puckHidden = false;
     await _applyVisibility();
     await _showMe();
     if (_options != null) {
@@ -460,6 +447,17 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
     return m < 60 ? '$m min' : '${m ~/ 60} h ${m % 60} min';
   }
 
+  /// Test tools: data source, sensor log, road capture and live sensor readings.
+  void _openTools() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF17202A),
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) => _ToolsSheet(host: this),
+    );
+  }
+
   void _openOptions() {
     showModalBottomSheet<void>(
       context: context,
@@ -588,25 +586,17 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
             onStyleLoadedCallback: _onStyleLoaded,
           ),
         ),
-        if (_view == CamView.inside && _follow)
-          Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _CockpitPainter(game: _theme == MapTheme.game, speedKmh: speedKmh)))),
         SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(children: [
-              if (opt != null)
-                _TurnBanner(
-                  next: next,
-                  toNext: next == null ? _route!.distance - _progress : next.offset - _progress,
-                  remaining: _route!.distance - _progress,
-                  eta: opt.duration * ((_route!.distance - _progress) / _route!.distance).clamp(0, 1),
-                  trafficDelay: opt.trafficDelay,
-                  onEnd: _endRoute,
-                ),
-              if (opt != null) const SizedBox(height: 8),
-              _LevelCard(est: _est, hasBaseline: _detector?.hasBaseline ?? false, compact: opt != null),
+              if (opt != null) ...[
+                _TurnBanner(next: next, toNext: next == null ? _route!.distance - _progress : next.offset - _progress),
+                const SizedBox(height: 6),
+              ],
+              _LevelPill(est: _est),
               const Spacer(),
-              if (_options == null) _MapButtons(onMe: _goToMe, onOptions: _openOptions, onSearch: _openSearch, theme: _theme, routing: _routing),
+              if (_options == null) _MapButtons(onMe: _goToMe, onOptions: _openOptions, onTools: _openTools, theme: _theme),
               if (_capture.camera != null) _CapturePreview(capture: _capture),
               if (_message != null) _Note(text: _message!, onClose: () => setState(() => _message = null)),
               if (_options != null)
@@ -635,17 +625,16 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
                   onGo: () => _start(_options![_chosen], _optionData![_chosen]),
                 )
               else
-                _BottomBar(
-                  live: _live,
-                  recording: _logger.recording,
-                  follow: _follow,
+                _DriveBar(
                   speedKmh: speedKmh,
-                  accuracy: _lastPos?.accuracy,
-                  pressure: _lastPressure,
-                  onSource: (live) => _useSource(live: live),
-                  onRecord: _toggleRecording,
-                  capturing: _capture.active,
-                  onCapture: _toggleCapture,
+                  follow: _follow,
+                  routing: _routing,
+                  recording: _logger.recording || _capture.active,
+                  remaining: opt == null ? null : _route!.distance - _progress,
+                  eta: opt == null ? null : opt.duration * ((_route!.distance - _progress) / _route!.distance).clamp(0, 1),
+                  trafficDelay: opt?.trafficDelay,
+                  onSearch: _openSearch,
+                  onEnd: _endRoute,
                   onFollow: () => setState(() => _follow = true),
                 ),
             ]),
@@ -656,13 +645,11 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
   }
 }
 
-/// Next turn, distance to it, and time and distance left.
+/// Next turn and the distance to it (time and distance left are in the bottom bar).
 class _TurnBanner extends StatelessWidget {
-  const _TurnBanner({required this.next, required this.toNext, required this.remaining, required this.eta, this.trafficDelay, required this.onEnd});
+  const _TurnBanner({required this.next, required this.toNext});
   final Maneuver? next;
-  final double toNext, remaining, eta;
-  final double? trafficDelay;
-  final VoidCallback onEnd;
+  final double toNext;
 
   static IconData icon(String kind) => switch (kind) {
         'left' => Icons.turn_left,
@@ -684,24 +671,18 @@ class _TurnBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final n = next;
-    final mins = (eta / 60).round();
-    final delay = trafficDelay == null ? 'no live traffic' : trafficDelay! < 60 ? 'traffic is light' : '+${(trafficDelay! / 60).round()} min traffic';
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
-      decoration: BoxDecoration(color: const Color(0xFF0F6B3A), borderRadius: BorderRadius.circular(18)),
+      padding: const EdgeInsets.fromLTRB(12, 8, 14, 8),
+      decoration: BoxDecoration(color: const Color(0xF00F6B3A), borderRadius: BorderRadius.circular(16)),
       child: Row(children: [
-        Icon(icon(n?.kind ?? 'arrive'), color: Colors.white, size: 44),
-        const SizedBox(width: 12),
+        Icon(icon(n?.kind ?? 'arrive'), color: Colors.white, size: 36),
+        const SizedBox(width: 10),
+        Text(dist(math.max(0, toNext)), style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+        const SizedBox(width: 10),
         Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(dist(math.max(0, toNext)), style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800)),
-            Text(n?.text ?? 'Destination', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 14)),
-            const SizedBox(height: 2),
-            Text('${mins < 60 ? '$mins min' : '${mins ~/ 60} h ${mins % 60} min'} · ${dist(remaining)} left · $delay',
-                style: const TextStyle(color: Colors.white70, fontSize: 12)),
-          ]),
+          child: Text(n?.text ?? 'Destination', maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.2)),
         ),
-        IconButton(onPressed: onEnd, tooltip: 'End route', icon: const Icon(Icons.close, color: Colors.white70)),
       ]),
     );
   }
@@ -797,128 +778,6 @@ class _RouteChooser extends StatelessWidget {
   }
 }
 
-/// Inside-the-car frame over the map: roof edge, windscreen pillars, dashboard
-/// with a speed read-out and the top of the steering wheel.
-class _CockpitPainter extends CustomPainter {
-  _CockpitPainter({required this.game, required this.speedKmh});
-  final bool game;
-  final double speedKmh;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width, h = size.height;
-    final body = Paint()..color = game ? const Color(0xFF2A1F3D) : const Color(0xFF0B0F14);
-    final trim = Paint()..color = game ? const Color(0xFFFF3DA8) : const Color(0xFF2B3542);
-    // roof edge and pillars
-    canvas.drawPath(Path()..moveTo(0, 0)..lineTo(w, 0)..lineTo(w, h * 0.06)..quadraticBezierTo(w / 2, h * 0.11, 0, h * 0.06)..close(), body);
-    canvas.drawPath(Path()..moveTo(0, 0)..lineTo(w * 0.09, 0)..lineTo(w * 0.02, h * 0.62)..lineTo(0, h * 0.64)..close(), body);
-    canvas.drawPath(Path()..moveTo(w, 0)..lineTo(w * 0.91, 0)..lineTo(w * 0.98, h * 0.62)..lineTo(w, h * 0.64)..close(), body);
-    // dashboard
-    final dashTop = h * 0.60;
-    final dash = Path()
-      ..moveTo(0, dashTop + 30)
-      ..quadraticBezierTo(w * 0.5, dashTop - 34, w, dashTop + 30)
-      ..lineTo(w, h)
-      ..lineTo(0, h)
-      ..close();
-    canvas.drawPath(dash, body);
-    canvas.drawPath(
-        Path()
-          ..moveTo(0, dashTop + 30)
-          ..quadraticBezierTo(w * 0.5, dashTop - 34, w, dashTop + 30),
-        trim
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3);
-    // top of the steering wheel
-    final wheel = Paint()
-      ..color = game ? const Color(0xFF15101F) : const Color(0xFF05070A)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 22;
-    canvas.drawArc(Rect.fromCircle(center: Offset(w * 0.5, dashTop + w * 0.42), radius: w * 0.36), math.pi * 1.12, math.pi * 0.76, false, wheel);
-    // speed on the dash
-    final tp = TextPainter(
-      text: TextSpan(children: [
-        TextSpan(text: speedKmh.round().toString(), style: TextStyle(color: game ? const Color(0xFF6CD4FF) : Colors.white, fontSize: 30, fontWeight: FontWeight.w800)),
-        const TextSpan(text: ' km/h', style: TextStyle(color: Colors.white60, fontSize: 13)),
-      ]),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, Offset(w * 0.5 - tp.width / 2, dashTop + 6));
-  }
-
-  @override
-  bool shouldRepaint(_CockpitPainter old) => old.game != game || old.speedKmh.round() != speedKmh.round();
-}
-
-class _LevelCard extends StatelessWidget {
-  const _LevelCard({required this.est, required this.hasBaseline, this.compact = false});
-  final LevelEstimate? est;
-  final bool hasBaseline, compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final e = est;
-    final up = e?.onFlyover ?? false;
-    final color = up ? const Color(0xFFF2B233) : const Color(0xFF6E97FF);
-    final title = e == null
-        ? 'Waiting for position…'
-        : switch (e.level) {
-            RoadLevel.upper => 'UPPER LEVEL · ON FLYOVER',
-            RoadLevel.ramp => 'ON FLYOVER RAMP',
-            RoadLevel.ground => 'GROUND LEVEL',
-          };
-    if (compact) {
-      // one line under the turn banner while navigating
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: up ? const Color(0xFF3A2E12) : const Color(0xE613263D),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.6), width: 1.2),
-        ),
-        child: Row(children: [
-          Icon(up ? Icons.alt_route : Icons.straight, color: color, size: 18),
-          const SizedBox(width: 8),
-          Text(title, style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12, letterSpacing: 0.6)),
-          const SizedBox(width: 10),
-          Expanded(
-              child: Text(e?.roadName ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 13))),
-        ]),
-      );
-    }
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      decoration: BoxDecoration(
-        color: up ? const Color(0xFF3A2E12) : const Color(0xFF13263D),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withValues(alpha: 0.6), width: 1.5),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(up ? Icons.alt_route : Icons.straight, color: color, size: 22),
-          const SizedBox(width: 8),
-          Expanded(child: Text(title, style: TextStyle(color: color, fontWeight: FontWeight.w700, letterSpacing: 0.8, fontSize: 13))),
-          if (e != null) Text('${(e.confidence * 100).round()}%', style: const TextStyle(color: Colors.white70, fontFeatures: [FontFeature.tabularFigures()])),
-        ]),
-        const SizedBox(height: 4),
-        Text(e?.roadName.isNotEmpty == true ? e!.roadName : '—',
-            style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
-        const SizedBox(height: 6),
-        Text(
-          e == null
-              ? ''
-              : '${e.reason}'
-                  '${e.baroHeight != null ? ' · baro ${e.baroHeight!.toStringAsFixed(1)} m' : hasBaseline ? '' : ' · learning ground pressure'}',
-          style: const TextStyle(color: Colors.white60, fontSize: 12),
-        ),
-      ]),
-    );
-  }
-}
-
 class _Note extends StatelessWidget {
   const _Note({required this.text, required this.onClose});
   final String text;
@@ -934,81 +793,6 @@ class _Note extends StatelessWidget {
           IconButton(onPressed: onClose, icon: const Icon(Icons.close, color: Colors.white60, size: 18)),
         ]),
       );
-}
-
-class _BottomBar extends StatelessWidget {
-  const _BottomBar({
-    required this.live,
-    required this.recording,
-    required this.follow,
-    required this.speedKmh,
-    required this.accuracy,
-    required this.pressure,
-    required this.onSource,
-    required this.onRecord,
-    required this.onFollow,
-    required this.capturing,
-    required this.onCapture,
-  });
-  final bool live, recording, follow, capturing;
-  final double speedKmh;
-  final double? accuracy, pressure;
-  final ValueChanged<bool> onSource;
-  final VoidCallback onRecord, onFollow, onCapture;
-
-  @override
-  Widget build(BuildContext context) {
-    const label = TextStyle(color: Colors.white54, fontSize: 11, letterSpacing: 0.6);
-    const value = TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700, fontFeatures: [FontFeature.tabularFigures()]);
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: const Color(0xFF17202A), borderRadius: BorderRadius.circular(18)),
-      child: Column(children: [
-        Row(children: [
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(speedKmh.round().toString(), style: value), const Text('KM/H', style: label)]),
-          const SizedBox(width: 18),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(accuracy == null ? '—' : '±${accuracy!.round()} m', style: value), const Text('GPS', style: label)]),
-          const SizedBox(width: 18),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(pressure == null ? 'none' : pressure!.toStringAsFixed(2), style: value), const Text('HPA', style: label)]),
-          const Spacer(),
-          if (!follow) IconButton.filledTonal(onPressed: onFollow, icon: const Icon(Icons.navigation), tooltip: 'Follow car'),
-        ]),
-        const SizedBox(height: 10),
-        Row(children: [
-          Expanded(
-            child: SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: false, label: Text('Simulated'), icon: Icon(Icons.play_circle_outline)),
-                ButtonSegment(value: true, label: Text('Live GPS'), icon: Icon(Icons.gps_fixed)),
-              ],
-              selected: {live},
-              onSelectionChanged: (s) => onSource(s.first),
-            ),
-          ),
-          const SizedBox(width: 8),
-          IconButton.filled(
-            onPressed: onCapture,
-            tooltip: capturing ? 'Stop road capture' : 'Road capture (camera + sensor log)',
-            style: IconButton.styleFrom(backgroundColor: capturing ? const Color(0xFFD7262E) : const Color(0xFF3A4656)),
-            icon: Icon(capturing ? Icons.videocam_off : Icons.videocam),
-          ),
-          const SizedBox(width: 8),
-          FilledButton.icon(
-            onPressed: capturing ? null : onRecord,
-            style: FilledButton.styleFrom(
-              backgroundColor: recording ? const Color(0xFFD7262E) : const Color(0xFF2E5BFF),
-              disabledBackgroundColor: const Color(0xFF6B2226),
-              disabledForegroundColor: Colors.white70,
-            ),
-            icon: Icon(recording ? Icons.stop : Icons.fiber_manual_record),
-            label: Text(recording ? 'Stop' : 'Record'),
-          ),
-        ]),
-      ]),
-    );
-  }
 }
 
 /// Small live camera view with a REC badge, clip count and size.
@@ -1045,48 +829,6 @@ class _CapturePreview extends StatelessWidget {
                   style: const TextStyle(color: Colors.white60, fontSize: 11)),
             ]),
           ),
-        ]),
-      ),
-    );
-  }
-}
-
-/// Round buttons on the right edge: map options and move to my location.
-class _MapButtons extends StatelessWidget {
-  const _MapButtons({required this.onMe, required this.onOptions, required this.onSearch, required this.theme, this.routing = false});
-  final VoidCallback onMe, onOptions, onSearch;
-  final MapTheme theme;
-  final bool routing;
-
-  @override
-  Widget build(BuildContext context) {
-    final style = IconButton.styleFrom(
-      backgroundColor: const Color(0xEE17202A),
-      foregroundColor: Colors.white,
-      fixedSize: const Size(48, 48),
-    );
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          IconButton(
-            onPressed: routing ? null : onSearch,
-            style: style,
-            tooltip: 'Search and route',
-            icon: routing
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.search),
-          ),
-          const SizedBox(height: 8),
-          IconButton(
-            onPressed: onOptions,
-            style: style,
-            tooltip: 'Map options',
-            icon: Icon(theme == MapTheme.game ? Icons.sports_esports : Icons.layers_outlined),
-          ),
-          const SizedBox(height: 8),
-          IconButton(onPressed: onMe, style: style, tooltip: 'Move to my location', icon: const Icon(Icons.my_location)),
         ]),
       ),
     );
@@ -1171,6 +913,279 @@ class _OptionsSheet extends StatelessWidget {
             title: const Text('Road signs and street names', style: TextStyle(color: Colors.white)),
             subtitle: const Text('Speed limits, speed cameras, crossings, street-name plates',
                 style: TextStyle(color: Colors.white54, fontSize: 12)),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// One-line status at the top: ground or flyover, and the road name.
+class _LevelPill extends StatelessWidget {
+  const _LevelPill({required this.est});
+  final LevelEstimate? est;
+
+  @override
+  Widget build(BuildContext context) {
+    final e = est;
+    final up = e?.onFlyover ?? false;
+    final color = up ? const Color(0xFFF2B233) : const Color(0xFF8FB0FF);
+    final level = e == null
+        ? 'Waiting for GPS…'
+        : switch (e.level) {
+            RoadLevel.upper => 'ON FLYOVER',
+            RoadLevel.ramp => 'RAMP',
+            RoadLevel.ground => 'GROUND',
+          };
+    final road = e?.roadName ?? '';
+    return Align(
+      alignment: Alignment.topLeft,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 6, 14, 6),
+        decoration: BoxDecoration(
+          color: up ? const Color(0xE63A2E12) : const Color(0xD9101820),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withValues(alpha: 0.55)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(up ? Icons.alt_route : Icons.straight, color: color, size: 16),
+          const SizedBox(width: 6),
+          Text(level, style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 12, letterSpacing: 0.6)),
+          if (road.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 220),
+              child: Text(road, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 13)),
+            ),
+          ],
+        ]),
+      ),
+    );
+  }
+}
+
+/// Bottom bar for driving: speed, then either "Where to?" or the time and
+/// distance left on the route, and re-centre when the map was moved.
+class _DriveBar extends StatelessWidget {
+  const _DriveBar({
+    required this.speedKmh,
+    required this.follow,
+    required this.routing,
+    required this.recording,
+    required this.remaining,
+    required this.eta,
+    required this.trafficDelay,
+    required this.onSearch,
+    required this.onEnd,
+    required this.onFollow,
+  });
+  final double speedKmh;
+  final bool follow, routing, recording;
+  final double? remaining, eta, trafficDelay;
+  final VoidCallback onSearch, onEnd, onFollow;
+
+  @override
+  Widget build(BuildContext context) {
+    final navigating = remaining != null;
+    Widget middle;
+    if (navigating) {
+      final mins = (eta! / 60).round();
+      final arrive = DateTime.now().add(Duration(seconds: eta!.round()));
+      final hhmm = '${arrive.hour.toString().padLeft(2, '0')}:${arrive.minute.toString().padLeft(2, '0')}';
+      final delay = trafficDelay == null ? null : trafficDelay! < 60 ? 'light traffic' : '+${(trafficDelay! / 60).round()} min traffic';
+      middle = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Text(mins < 60 ? '$mins min' : '${mins ~/ 60} h ${mins % 60} min',
+            style: const TextStyle(color: Color(0xFF7CE38B), fontSize: 20, fontWeight: FontWeight.w800)),
+        Text('${_TurnBanner.dist(remaining!)} · arrive $hhmm${delay == null ? '' : ' · $delay'}',
+            maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white60, fontSize: 12)),
+      ]);
+    } else {
+      middle = InkWell(
+        onTap: routing ? null : onSearch,
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(color: const Color(0xFF243140), borderRadius: BorderRadius.circular(24)),
+          child: Row(children: [
+            routing
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white70))
+                : const Icon(Icons.search, color: Colors.white70, size: 20),
+            const SizedBox(width: 10),
+            Text(routing ? 'Finding routes…' : 'Where to?', style: const TextStyle(color: Colors.white70, fontSize: 16)),
+          ]),
+        ),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: const Color(0xF217202A),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 12, offset: Offset(0, 4))],
+      ),
+      child: Row(children: [
+        // speed
+        Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: const Color(0xFF0E141B),
+            border: Border.all(color: recording ? const Color(0xFFD7262E) : const Color(0xFF3A4656), width: 2.5),
+          ),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text(speedKmh.round().toString(),
+                style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, height: 1.0, fontFeatures: [FontFeature.tabularFigures()])),
+            const Text('km/h', style: TextStyle(color: Colors.white54, fontSize: 9)),
+          ]),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: middle),
+        if (!follow) ...[
+          const SizedBox(width: 6),
+          IconButton.filledTonal(onPressed: onFollow, icon: const Icon(Icons.navigation), tooltip: 'Follow car'),
+        ],
+        if (navigating) ...[
+          const SizedBox(width: 6),
+          IconButton.filled(
+            onPressed: onEnd,
+            tooltip: 'End route',
+            style: IconButton.styleFrom(backgroundColor: const Color(0xFF8B1E24)),
+            icon: const Icon(Icons.close),
+          ),
+        ],
+      ]),
+    );
+  }
+}
+
+/// Round buttons on the right edge: map options, test tools, my location.
+class _MapButtons extends StatelessWidget {
+  const _MapButtons({required this.onMe, required this.onOptions, required this.onTools, required this.theme});
+  final VoidCallback onMe, onOptions, onTools;
+  final MapTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = IconButton.styleFrom(
+      backgroundColor: const Color(0xE617202A),
+      foregroundColor: Colors.white,
+      fixedSize: const Size(46, 46),
+    );
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          IconButton(
+            onPressed: onOptions,
+            style: style,
+            tooltip: 'Map options',
+            icon: Icon(theme == MapTheme.game ? Icons.sports_esports : Icons.layers_outlined),
+          ),
+          const SizedBox(height: 8),
+          IconButton(onPressed: onTools, style: style, tooltip: 'Test tools', icon: const Icon(Icons.science_outlined)),
+          const SizedBox(height: 8),
+          IconButton(onPressed: onMe, style: style, tooltip: 'Move to my location', icon: const Icon(Icons.my_location)),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Test tools: simulated or live position, sensor log, road capture, and the
+/// detector's live readings (what the old bottom bar and level card showed).
+class _ToolsSheet extends StatefulWidget {
+  const _ToolsSheet({required this.host});
+  final _DriveScreenState host;
+
+  @override
+  State<_ToolsSheet> createState() => _ToolsSheetState();
+}
+
+class _ToolsSheetState extends State<_ToolsSheet> {
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _run(Future<void> Function() f) async {
+    await f();
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final h = widget.host;
+    final e = h._est;
+    const head = TextStyle(color: Colors.white70, fontSize: 12, letterSpacing: 0.8, fontWeight: FontWeight.w600);
+    const label = TextStyle(color: Colors.white54, fontSize: 11, letterSpacing: 0.6);
+    const value = TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700, fontFeatures: [FontFeature.tabularFigures()]);
+    Widget stat(String v, String l) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(v, style: value), Text(l, style: label)]);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('POSITION', style: head),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: false, label: Text('Simulated'), icon: Icon(Icons.play_circle_outline)),
+                ButtonSegment(value: true, label: Text('Live GPS'), icon: Icon(Icons.gps_fixed)),
+              ],
+              selected: {h._live},
+              onSelectionChanged: (s) => _run(() => h._useSource(live: s.first)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text('RECORD', style: head),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: h._capture.active ? null : () => _run(h._toggleRecording),
+                style: FilledButton.styleFrom(backgroundColor: h._logger.recording ? const Color(0xFFD7262E) : const Color(0xFF2E5BFF)),
+                icon: Icon(h._logger.recording ? Icons.stop : Icons.fiber_manual_record),
+                label: Text(h._logger.recording ? 'Stop sensor log' : 'Sensor log'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: () => _run(h._toggleCapture),
+                style: FilledButton.styleFrom(backgroundColor: h._capture.active ? const Color(0xFFD7262E) : const Color(0xFF3A4656)),
+                icon: Icon(h._capture.active ? Icons.videocam_off : Icons.videocam),
+                label: Text(h._capture.active ? 'Stop capture' : 'Road capture'),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 16),
+          const Text('SENSORS AND DETECTOR', style: head),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: stat(h._lastPos == null ? '—' : '±${h._lastPos!.accuracy.round()} m', 'GPS')),
+            Expanded(child: stat(h._lastPressure == null ? 'none' : h._lastPressure!.toStringAsFixed(2), 'HPA')),
+            Expanded(child: stat(e?.baroHeight == null ? '—' : '${e!.baroHeight!.toStringAsFixed(1)} m', 'BARO HEIGHT')),
+            Expanded(child: stat(e == null ? '—' : '${(e.confidence * 100).round()}%', 'CONFIDENCE')),
+          ]),
+          const SizedBox(height: 8),
+          Text(
+            e == null ? 'Waiting for position' : '${e.reason}${(h._detector?.hasBaseline ?? false) ? '' : ' · learning ground pressure'}',
+            style: const TextStyle(color: Colors.white60, fontSize: 12),
           ),
         ]),
       ),
