@@ -1,7 +1,7 @@
 """Download OpenStreetMap data for an area from Overpass (with retries).
 
 Usage: python tools/fetch_area.py raw/cfc  S W N E [--only signs.json]
-Writes roads.json, areas.json, buildings.json and signs.json into the folder.
+Writes roads.json, areas.json, buildings.json, signs.json and pois.json into the folder.
 """
 import json
 import sys
@@ -34,6 +34,13 @@ out geom;""",
  node["enforcement"]({bbox});
  node["crossing"]({bbox}););
 out;""",
+    # named places for the search box (OSM has English and Arabic names: name, name:en, name:ar)
+    "pois.json": f"""[out:json][timeout:240];
+(nwr["name"]["amenity"]({bbox}); nwr["name"]["shop"]({bbox}); nwr["name"]["tourism"]({bbox});
+ nwr["name"]["leisure"]({bbox}); nwr["name"]["office"]({bbox}); nwr["name"]["healthcare"]({bbox});
+ nwr["name"]["building"]({bbox}); nwr["name"]["place"]({bbox}); nwr["name"]["landuse"]({bbox});
+ nwr["name"]["historic"]({bbox}); nwr["name"]["public_transport"="station"]({bbox}); nwr["name"]["railway"="station"]({bbox}););
+out tags center;""",
 }
 SERVERS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"]
 

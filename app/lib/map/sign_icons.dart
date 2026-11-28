@@ -56,11 +56,41 @@ class SignIcons {
       });
 
   /// Speed camera: blue square with a camera.
-  static Future<Uint8List> camera() => _draw('camera', 90, 160, (c) {
-        _poleAt(c, 45, 80, 160);
-        c.drawRRect(RRect.fromLTRBR(4, 4, 86, 86, const Radius.circular(10)), Paint()..color = Colors.white);
-        c.drawRRect(RRect.fromLTRBR(9, 9, 81, 81, const Radius.circular(7)), Paint()..color = _blue);
-        _icon(c, Icons.photo_camera, const Offset(45, 45), 50, Colors.white);
+  /// Speed camera: dark blue plate with a radar camera and its beam, and the
+  /// speed limit it checks in a red ring when known ([limit] 0 = unknown).
+  static Future<Uint8List> camera([int limit = 0]) => _draw('camera-$limit', 104, 176, (c) {
+        _poleAt(c, 52, 90, 176);
+        final plate = RRect.fromLTRBR(4, 14, 100, 96, const Radius.circular(16));
+        c.drawRRect(plate.inflate(1), Paint()..color = const Color(0x55000000));
+        c.drawRRect(plate, Paint()
+          ..shader = ui.Gradient.linear(const Offset(0, 14), const Offset(0, 96), [const Color(0xFF2B63C9), const Color(0xFF13306E)]));
+        c.drawRRect(plate, Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 4);
+        // camera body on its bracket, lens, and the radar beam
+        final white = Paint()..color = Colors.white;
+        c.drawRRect(RRect.fromLTRBR(18, 40, 62, 70, const Radius.circular(6)), white);
+        c.drawRect(const Rect.fromLTRB(34, 70, 42, 82), white);
+        c.drawCircle(const Offset(40, 55), 10, Paint()..color = const Color(0xFF13306E));
+        c.drawCircle(const Offset(40, 55), 4.5, Paint()..color = const Color(0xFF8FB8FF));
+        c.drawCircle(const Offset(55, 45), 2.5, Paint()..color = const Color(0xFFFF4A4A));
+        final beam = Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 4;
+        for (final r in [10.0, 18.0]) {
+          c.drawArc(Rect.fromCircle(center: const Offset(66, 55), radius: r), -0.7, 1.4, false, beam);
+        }
+        if (limit > 0) {
+          c.drawCircle(const Offset(84, 18), 17, Paint()..color = Colors.white);
+          c.drawCircle(const Offset(84, 18), 14.5, Paint()
+            ..color = _red
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 5);
+          _text(c, '$limit', const Offset(84, 19), limit > 99 ? 11 : 14, Colors.black);
+        }
       });
 
   /// Pedestrian crossing: blue square, white triangle, walking figure.

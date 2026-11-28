@@ -123,7 +123,7 @@ const _roadW = [
 const signalLayers = ['signals', 'signal-glow', 'signal-3d'];
 
 /// Layers that the "Road signs" switch shows and hides.
-const signLayers = ['road-signs', 'street-names'];
+const signLayers = ['camera-zone', 'road-signs', 'street-names'];
 
 Future<Map<String, dynamic>> _asset(String name) async =>
     jsonDecode(await rootBundle.loadString('assets/data/$name')) as Map<String, dynamic>;
@@ -284,12 +284,23 @@ Future<SignSet> addSignLayers(MapLibreMapController c, MapTheme theme) async {
   await c.addGeoJsonSource('signs', signs['signs'] as Map<String, dynamic>);
   final feats = (signs['signs']['features'] as List);
   final kinds = <String>{for (final f in feats) f['properties']['k'] as String};
+  for (final f in feats) {
+    final p = f['properties'] as Map;
+    if (p['k'] == 'camera') {
+      final ms = (p['ms'] as num?)?.toInt() ?? 0;
+      p['img'] = 'camera-$ms';
+      if (!kinds.contains('camera-$ms')) {
+        kinds.add('camera-$ms');
+        await c.addImage('camera-$ms', await SignIcons.camera(ms));
+      }
+    }
+  }
+  await c.setGeoJsonSource('signs', signs['signs'] as Map<String, dynamic>);
   for (final k in kinds) {
-    if (k == 'name') continue;
+    if (k == 'name' || k.startsWith('camera')) continue;
     final png = k.startsWith('speed-')
         ? await SignIcons.speed(k.substring(6))
         : switch (k) {
-            'camera' => await SignIcons.camera(),
             'crossing' => await SignIcons.crossing(),
             'signal' => await SignIcons.signal(),
             'stop' => await SignIcons.stop(),
@@ -298,9 +309,16 @@ Future<SignSet> addSignLayers(MapLibreMapController c, MapTheme theme) async {
           };
     if (png != null) await c.addImage(k, png);
   }
-  const size = ['interpolate', ['linear'], ['zoom'], 15, 0.32, 17, 0.5, 19, 0.8];
+  // a little smaller than before: they stand at the roadside and should not cover the road
+  const size = ['interpolate', ['linear'], ['zoom'], 15, 0.26, 17, 0.42, 19, 0.66];
+  // red zone on the road where a speed camera checks (about 60 m before it)
+  await c.addCircleLayer('signs', 'camera-zone', const CircleLayerProperties(
+    circleColor: '#FF3B30', circleOpacity: 0.18, circleStrokeColor: '#FF3B30', circleStrokeWidth: 1.5, circleStrokeOpacity: 0.6,
+    circlePitchAlignment: 'map',
+    circleRadius: ['interpolate', ['exponential', 2], ['zoom'], 14, 3, 20, 192],
+  ), minzoom: 14, belowLayerId: 'me-acc', filter: ['==', ['get', 'k'], 'camera']);
   await c.addSymbolLayer('signs', 'road-signs', SymbolLayerProperties(
-    iconImage: const ['get', 'k'], iconSize: size, iconAnchor: 'bottom', iconAllowOverlap: true, iconIgnorePlacement: true,
+    iconImage: const ['coalesce', ['get', 'img'], ['get', 'k']], iconSize: size, iconAnchor: 'bottom', iconAllowOverlap: true, iconIgnorePlacement: true,
   ), minzoom: 15, belowLayerId: 'me-acc', filter: [
     'all', ['!=', ['get', 'k'], 'name'],
     if (theme.arcade) ['!=', ['get', 'k'], 'signal'] else true, // game looks have 3D lights

@@ -5,6 +5,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 
 import '../sensors/trip_logger.dart';
+import '../vision/lane_detector.dart';
 
 /// Internal test capture: records forward-facing road video while driving.
 ///
@@ -34,6 +35,12 @@ class RoadCapture extends ChangeNotifier {
   int clips = 0;
   int bytes = 0;
   DateTime? startedAt;
+
+  /// Lane lines in the live picture, about three times a second while recording.
+  final lanes = LaneDetector();
+  void Function(LaneReading r)? onLane;
+  DateTime _lastLaneFrame = DateTime(2000);
+  bool _laneBusy = false;
 
   IOSink? _index;
   Timer? _rotate;
@@ -95,9 +102,64 @@ class RoadCapture extends ChangeNotifier {
 
   Future<void> _startClip() async {
     final before = DateTime.now().millisecondsSinceEpoch;
-    await camera!.startVideoRecording();
+    try {
+      await camera!.startVideoRecording(onAvailable: _laneFrame);
+    } catch (_) {
+      // this phone cannot stream frames while recording: video only
+      if (!camera!.value.isRecordingVideo) await camera!.startVideoRecording();
+    }
     final after = DateTime.now().millisecondsSinceEpoch;
     _clipStartMs = (before + after) ~/ 2;
+  }
+
+  void _laneFrame(CameraImage img) {
+    final now = DateTime.now();
+    if (_laneBusy || now.difference(_lastLaneFrame).inMilliseconds < 330) return;
+    _lastLaneFrame = now;
+    _laneBusy = true;
+    try {
+      final g = portraitGrey(img, camera?.description.sensorOrientation ?? 90);
+      if (g != null) {
+        final r = lanes.addFrame(g, now);
+        if (r != null) onLane?.call(r);
+      }
+    } catch (_) {
+      // a bad frame: skip it
+    } finally {
+      _laneBusy = false;
+    }
+  }
+
+  /// The camera frame as an upright grey picture of LaneDetector.w x LaneDetector.h.
+  /// Frames come in the sensor's landscape orientation; [rotation] turns them upright.
+  static Uint8List? portraitGrey(CameraImage img, int rotation) {
+    final p = img.planes.first;
+    final bgra = img.format.group == ImageFormatGroup.bgra8888;
+    final step = bgra ? 4 : 1, off = bgra ? 1 : 0; // BGRA: green is close to brightness
+    final sw = img.width, sh = img.height, row = p.bytesPerRow;
+    final b = p.bytes;
+    const w = LaneDetector.w, h = LaneDetector.h;
+    final out = Uint8List(w * h);
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        int sx, sy;
+        switch (rotation) {
+          case 90:
+            sx = y * sw ~/ h;
+            sy = sh - 1 - x * sh ~/ w;
+          case 270:
+            sx = sw - 1 - y * sw ~/ h;
+            sy = x * sh ~/ w;
+          default:
+            sx = x * sw ~/ w;
+            sy = y * sh ~/ h;
+        }
+        final i = sy * row + sx * step + off;
+        if (i >= b.length) return null;
+        out[y * w + x] = b[i];
+      }
+    }
+    return out;
   }
 
   /// Closes the current clip, moves it into the capture folder and logs it.

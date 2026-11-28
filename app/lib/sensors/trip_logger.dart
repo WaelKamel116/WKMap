@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 import '../nav/level_detector.dart';
+import '../vision/lane_detector.dart';
 import 'drive_source.dart';
 
 /// Writes every sensor reading and every level decision to a CSV file, so a
@@ -57,6 +58,14 @@ class TripLogger {
       case YawSample y:
         k.writeln('$t,yaw,,,,,,,,,,,,,${y.dps.toStringAsFixed(2)}');
     }
+    rows++;
+  }
+
+  /// Lane lines seen by the camera: road column = "lane/lanes/offset m".
+  void lane(LaneReading r) {
+    final k = _sink;
+    if (k == null) return;
+    k.writeln('${r.time.millisecondsSinceEpoch},lane,,,,,,,,,,,,${r.lane}/${r.lanes}/${r.offsetM.toStringAsFixed(2)},');
     rows++;
   }
 

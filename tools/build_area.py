@@ -28,8 +28,8 @@ the car as it drives.
 
 Usage: python tools/build_area.py cfc [--extra-route raw/route3.json] [--out app/assets/data] [--whole]
 """
-import argparse, hashlib, heapq, json, math, os
-from collections import Counter
+import argparse, glob, hashlib, heapq, json, math, os, re
+from collections import Counter, defaultdict
 
 ap = argparse.ArgumentParser()
 ap.add_argument("area")
@@ -135,6 +135,112 @@ def lanes_of(t, cls):
 def name_of(t): return t.get("name:en") or t.get("name", "")
 
 
+# ------------------------------------------------------------------ speed limits
+# OpenStreetMap is the only open source of speed limits here (Overture copies it):
+# about 1 in 100 road pieces has one, and neighbouring pieces of one road
+# sometimes disagree (60 then 80 then 60). Cleaned up so the driver sees one
+# consistent limit per stretch:
+#   * values that cannot be right are dropped (residential street at 90),
+#   * a short piece whose neighbours of the same road agree on another value
+#     takes their value, and a short untagged piece between two pieces with
+#     the same limit gets it too.
+def parse_speed(v):
+    m = re.match(r"\s*(\d+)", str(v or ""))
+    return int(m.group(1)) if m else None
+
+
+def way_len(w):
+    g = w["geometry"]
+    return sum(dist([a["lon"], a["lat"]], [b["lon"], b["lat"]]) for a, b in zip(g, g[1:]))
+
+
+SPEED_CAP = {"minor": 60, "service": 40}
+speed = {}
+for wid, w in ways.items():
+    cls = CLASS.get(w["tags"]["highway"])
+    v = parse_speed(w["tags"].get("maxspeed"))
+    if v and (v < 10 or v > 140 or v > SPEED_CAP.get(cls, 999)):
+        report["speed: dropped impossible values"] += 1
+        v = None
+    if v:
+        speed[wid] = v
+report["speed: road pieces with an OSM limit"] = len(speed)
+ends = defaultdict(list)
+for wid, w in ways.items():
+    if w.get("nodes"):
+        ends[w["nodes"][0]].append(wid)
+        ends[w["nodes"][-1]].append(wid)
+for _ in range(3):
+    for wid, w in ways.items():
+        nm = name_of(w["tags"])
+        if not nm or not w.get("nodes") or way_len(w) > 400:
+            continue
+        sides = [{speed[o] for o in ends[n] if o != wid and o in speed and name_of(ways[o]["tags"]) == nm}
+                 for n in (w["nodes"][0], w["nodes"][-1])]
+        if len(sides[0]) == 1 and sides[0] == sides[1]:
+            v = next(iter(sides[0]))
+            if speed.get(wid) != v:
+                report["speed: evened out (short piece between same limits)" if wid in speed else
+                       "speed: filled (short gap between same limits)"] += 1
+                speed[wid] = v
+
+
+# ------------------------------------------------------------------ lanes seen in capture videos
+# tools/lanes_from_video.py writes one reading per second of straight driving
+# (lanes seen, GPS position, heading) into raw/lanes/. A divided road piece
+# (one-way way) that OSM has no lane count for takes the most common reading,
+# when there are at least 5 readings and 60 % of them agree.
+def video_lanes():
+    obs = []
+    for fn in glob.glob(os.path.join(os.path.dirname(RAW), "lanes", "*.json")):
+        obs += [w for w in load(fn)["windows"] if w.get("ok")]
+    if not obs:
+        return {}
+    G = 0.002
+    grid = defaultdict(list)
+    for w in ways.values():
+        if CLASS.get(w["tags"]["highway"]) not in ("major", "medium", "link") or w["tags"].get("oneway") != "yes":
+            continue
+        g = [[q["lon"], q["lat"]] for q in w["geometry"]]
+        for a, b in zip(g, g[1:]):
+            grid[(int((a[0] + b[0]) / 2 / G), int((a[1] + b[1]) / 2 / G))].append((a, b, w["id"]))
+    votes = defaultdict(Counter)
+    for o in obs:
+        p = [o["lon"], o["lat"]]
+        px, py = xy(p)
+        best = None
+        for gx in (int(p[0] / G) - 1, int(p[0] / G), int(p[0] / G) + 1):
+            for gy in (int(p[1] / G) - 1, int(p[1] / G), int(p[1] / G) + 1):
+                for a, b, wid in grid.get((gx, gy), []):
+                    if abs((bearing(a, b) - o["heading"] + 540) % 360 - 180) > 25:
+                        continue
+                    ax, ay = xy(a); bx, by = xy(b)
+                    dx, dy = bx - ax, by - ay
+                    L2 = dx * dx + dy * dy or 1e-9
+                    f = max(0, min(1, ((px - ax) * dx + (py - ay) * dy) / L2))
+                    d = math.hypot(ax + f * dx - px, ay + f * dy - py)
+                    if d < 15 and (best is None or d < best[0]):
+                        best = (d, wid)
+        if best:
+            votes[best[1]][o["lanes"]] += 1
+    out = {}
+    for wid, c in votes.items():
+        n = sum(c.values())
+        v, k = c.most_common(1)[0]
+        osm = lanes_of(ways[wid]["tags"], None)
+        if n >= 5 and k / n >= 0.6:
+            if osm is None:
+                out[wid] = v
+            elif osm != v:
+                report["lanes: video disagrees with OSM (kept OSM)"] += 1
+        report["lanes: road pieces with video readings"] += 1
+    report["lanes: road pieces given a lane count from video"] = len(out)
+    return out
+
+
+# filled in as if OSM had the lane count, so road width and sign placement agree
+for _wid, _n in video_lanes().items():
+    ways[_wid]["tags"]["lanes"] = str(_n)
 ground_roads, bridge_ways = [], []
 for w in ways.values():
     t = w["tags"]; cls = CLASS.get(t["highway"])
@@ -157,7 +263,7 @@ for w in ways.values():
         continue
     ow = 1 if t.get("oneway") == "yes" else 0
     ground_roads.append({"type": "Feature", "properties": {"c": cls, "n": name_of(t), "l": lanes or DEFAULT_LANES[cls][1 - ow],
-                                                           "ow": ow},
+                                                           "ow": ow, "ms": speed.get(w["id"], 0)},
                          "geometry": {"type": "LineString", "coordinates": g}})
 report["roads: kept ground"] = len(ground_roads)
 report["roads: flyover/bridge pieces"] = len(bridge_ways)
@@ -530,14 +636,15 @@ def far_from(kind, p, brg, gap):
     return True
 
 
-def add_sign(kind, p, brg=None, gap=0, **extra):
-    if gap and not far_from(kind, p, brg, gap):
+def add_sign(kind, p, brg=None, gap=0, group=None, **extra):
+    if gap and not far_from(group or kind, p, brg, gap):
         return
-    placed.append((kind, p, brg))
+    placed.append((group or kind, p, brg))
     signs.append({"type": "Feature", "properties": {"k": kind, **extra}, "geometry": {"type": "Point", "coordinates": r6(p)}})
 
 
-for w in ways.values():
+RANK = {"major": 0, "medium": 1, "link": 2}
+for w in sorted(ways.values(), key=lambda w: RANK.get(CLASS.get(w["tags"]["highway"]), 9)):
     t = w["tags"]; cls = CLASS.get(t["highway"])
     if cls not in ("major", "medium", "link") or t.get("tunnel") not in (None, "no"):
         continue
@@ -549,14 +656,16 @@ for w in ways.values():
     if L < 30:
         continue
     dirs = [g] if ow else [g, g[::-1]]
-    ms = str(t.get("maxspeed", "")).split()[0] if t.get("maxspeed") else ""
+    ms = str(speed.get(w["id"], ""))
     nm_en, nm_ar = t.get("name:en", ""), t.get("name", "")
     for gg in dirs:
-        if ms.isdigit():
-            s_at = min(25.0, L / 2)
+        if ms.isdigit() and (cls != "link" or L > 150):
+            # one speed sign per spot: no second sign with another number within
+            # 250 m for the same direction (that showed 60 and 80 side by side)
+            s_at = min(25.0, L / 2) if cls != "link" else L / 2
             while s_at < L:
                 p, b = point_along(gg, s_at)
-                add_sign(f"speed-{ms}", beside(p, b, half + 1.8), b, gap=300)
+                add_sign(f"speed-{ms}", beside(p, b, half + 1.8), b, gap=250, group="speed")
                 s_at += 700
         if (nm_en or nm_ar) and cls != "link" and t.get("bridge") in (None, "no"):
             key = nm_en or nm_ar
@@ -572,43 +681,207 @@ for w in ways.values():
                     signs[-1]["properties"] = {"k": "name", "ni": name_ix[key]}
                 s_at += 450
 
+# OSM maps cameras, crossings, stop signs and traffic lights as points ON the road
+# centreline, which drew them in the middle of the road. Each is moved to the
+# right-hand roadside of the road it belongs to, once per direction of travel
+# (one-way roads: one sign), facing that direction.
+WG = 0.002
+way_grid = defaultdict(list)
+for w in ways.values():
+    cls = CLASS.get(w["tags"]["highway"])
+    if cls in (None, "service") or w["tags"].get("tunnel") not in (None, "no"):
+        continue
+    g = [[q["lon"], q["lat"]] for q in w["geometry"]]
+    ow = w["tags"].get("oneway") == "yes"
+    lanes = lanes_of(w["tags"], cls) or DEFAULT_LANES[cls][0 if ow else 1]
+    info = (w, cls, ow, road_width(cls, lanes, ow) / 2)
+    for a, b in zip(g, g[1:]):
+        for gx in range(int(min(a[0], b[0]) / WG), int(max(a[0], b[0]) / WG) + 1):
+            for gy in range(int(min(a[1], b[1]) / WG), int(max(a[1], b[1]) / WG) + 1):
+                way_grid[(gx, gy)].append((a, b, info))
+
+
+def nearest_road(p, max_d=20, prefer_main=False):
+    """(distance, foot point, bearing of the piece, way info) of the closest road to p."""
+    best = None
+    px, py = xy(p)
+    seen = set()
+    for gx in (int(p[0] / WG) - 1, int(p[0] / WG), int(p[0] / WG) + 1):
+        for gy in (int(p[1] / WG) - 1, int(p[1] / WG), int(p[1] / WG) + 1):
+            for a, b, info in way_grid.get((gx, gy), []):
+                ax, ay = xy(a); bx, by = xy(b)
+                dx, dy = bx - ax, by - ay
+                L2 = dx * dx + dy * dy
+                f = 0 if L2 == 0 else max(0, min(1, ((px - ax) * dx + (py - ay) * dy) / L2))
+                d = math.hypot(ax + f * dx - px, ay + f * dy - py)
+                if prefer_main and info[1] == "minor":
+                    d += 8  # a light at a junction belongs to the main road
+                if d <= max_d and (best is None or d < best[0]):
+                    best = (d, ll(ax + f * dx, ay + f * dy), bearing(a, b), info)
+    return best
+
+
+def roadside(kind, p, gap=15, dir_tag=None, **extra):
+    """Put a sign for point p beside its road, on the right of each travel direction."""
+    r = nearest_road(p, prefer_main=kind == "signal")
+    if r is None:
+        add_sign(kind, p, gap=gap, **extra)
+        report[f"signs: {kind} left in place (no road near)"] += 1
+        return
+    d, foot, b, (w, cls, ow, half) = r
+    dirs = [b] if ow else [b, (b + 180) % 360]
+    if dir_tag is not None and not ow:
+        # camera direction: degrees, or forward/backward along the way
+        try:
+            want = float(dir_tag)
+            dirs = [min(dirs, key=lambda x: abs((x - want + 540) % 360 - 180))]
+        except ValueError:
+            if dir_tag in ("forward", "backward"):
+                dirs = [dirs[0] if dir_tag == "forward" else dirs[1]]
+    for bb in dirs:
+        add_sign(kind, beside(foot, bb, half + 1.2), bb, gap=gap, b=round(bb), **extra)
+
+
 spath = os.path.join(RAW, "signs.json")
 if os.path.exists(spath):
     for e in load(spath)["elements"]:
         t = e.get("tags", {})
         p = [e["lon"], e["lat"]]
         if t.get("highway") == "speed_camera" or t.get("enforcement") in ("maxspeed", "average_speed"):
-            add_sign("camera", p, gap=15)
+            r = nearest_road(p)
+            ms = parse_speed(t.get("maxspeed")) or (speed.get(r[3][0]["id"], 0) if r else 0)
+            roadside("camera", p, gap=40, dir_tag=t.get("direction") or t.get("camera:direction"), **({"ms": ms} if ms else {}))
         elif t.get("highway") == "crossing" and t.get("crossing") in ("marked", "zebra", "traffic_signals", "uncontrolled"):
-            add_sign("crossing", p, gap=15)
+            roadside("crossing", p)
         elif t.get("highway") == "stop":
-            add_sign("stop", p)
+            roadside("stop", p)
         elif t.get("highway") == "give_way":
-            add_sign("give_way", p)
+            roadside("give_way", p)
 for f in signals:
-    add_sign("signal", f["geometry"]["coordinates"])
+    roadside("signal", f["geometry"]["coordinates"], gap=25)
+# the game looks' 3D traffic lights stand where the signs now stand
+signals = [{"type": "Feature", "properties": {}, "geometry": s["geometry"]} for s in signs if s["properties"]["k"] == "signal"]
 for k, v in Counter(f["properties"]["k"].split("-")[0] for f in signs).items():
     report[f"signs: {k}"] = v
 
 # ------------------------------------------------------------------ search index (offline)
-# Overture places in the box plus one point per named main road, for the app's search box.
-search = []
-ppath = os.path.join(RAW, "overture_places.json")
-if os.path.exists(ppath):
-    for pl in load(ppath):
-        if pl.get("name"):
-            search.append([pl["name"], pl.get("cat") or "", round(pl["lon"], 6), round(pl["lat"], 6)])
+# Everything the search box can find without internet, in one list:
+#   [name, other names ("|"-separated: English / Arabic / alternates), kind, lon, lat, address, weight]
+# Sources: Overture places (shops, clinics, ...: address and brand), OpenStreetMap
+# named places (English and Arabic names, districts, stations, landmarks), and
+# one point per named road (English and Arabic). The same place from both
+# sources (same name within 120 m) is kept once with all its names. weight
+# (0-9) ranks well-known places (malls, hospitals, stations) above small shops.
+BIG = {"shopping_mall": 9, "airport": 9, "train_station": 8, "public_transit_facility_or_service": 7, "college_university": 7,
+       "hospital": 6, "stadium_arena": 7, "museum": 7, "historic_site": 6, "monument": 6, "park": 6, "amusement_park": 7,
+       "hotel": 6, "resort": 6, "department_store": 6, "superstore": 6, "movie_theater": 5, "muslim_place_of_worship": 5,
+       "christian_place_of_worship": 5, "government_office": 5, "police_station": 5, "embassy": 5, "sport_or_recreation_club": 5,
+       "gas_station": 4, "fueling_station": 4, "bank_or_credit_union": 3, "pharmacy_and_drug_store": 3, "high_school": 4,
+       "district": 8, "neighbourhood": 7, "suburb": 8, "road": 5}
+OSM_KIND = {("amenity", "hospital"): "hospital", ("amenity", "university"): "college_university", ("shop", "mall"): "shopping_mall",
+            ("amenity", "fuel"): "gas_station", ("amenity", "pharmacy"): "pharmacy_and_drug_store", ("amenity", "bank"): "bank_or_credit_union",
+            ("amenity", "atm"): "atm", ("amenity", "school"): "school", ("amenity", "place_of_worship"): "place_of_worship",
+            ("amenity", "restaurant"): "restaurant", ("amenity", "cafe"): "cafe", ("amenity", "fast_food"): "fast_food_restaurant",
+            ("amenity", "police"): "police_station", ("tourism", "hotel"): "hotel", ("tourism", "museum"): "museum",
+            ("leisure", "park"): "park", ("leisure", "stadium"): "stadium_arena", ("railway", "station"): "train_station",
+            ("public_transport", "station"): "train_station", ("amenity", "cinema"): "movie_theater", ("shop", "supermarket"): "supermarket",
+            ("leisure", "sports_centre"): "sport_or_recreation_club", ("amenity", "clinic"): "clinic", ("amenity", "college"): "college_university"}
+NORM = str.maketrans({"أ": "ا", "إ": "ا", "آ": "ا", "ة": "ه", "ى": "ي"})
+
+
+def nkey(n): return re.sub(r"[^\w]+", " ", (n or "").lower().translate(NORM)).strip()
+
+
+search_ix = {}  # (normalised name, ~120 m cell) -> entry
+SC = 0.0012
+
+
+def add_place(names, kind, lon, lat, addr="", weight=2):
+    names = [n.strip() for n in names if n and n.strip()]
+    uniq = []
+    for n in names:
+        if nkey(n) and nkey(n) not in [nkey(u) for u in uniq]:
+            uniq.append(n)
+    if not uniq or not (W0 <= lon <= E0 and S0 <= lat <= N0):
+        return
+    cell = (round(lon / SC), round(lat / SC))
+    for n in uniq:
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                e = search_ix.get((nkey(n), cell[0] + dx, cell[1] + dy))
+                if e is not None:  # same place from another source: merge names, keep the better details
+                    have = [nkey(x) for x in [e[0]] + e[1].split("|") if x]
+                    e[1] = "|".join([x for x in e[1].split("|") if x] + [u for u in uniq if nkey(u) not in have])
+                    e[5] = e[5] or addr
+                    e[6] = max(e[6], weight)
+                    if e[2] in ("", "place") and kind:
+                        e[2] = kind
+                    return
+    e = [uniq[0], "|".join(uniq[1:]), kind or "", round(lon, 6), round(lat, 6), addr, weight]
+    for n in uniq:
+        search_ix[(nkey(n), *cell)] = e
+
+
+lons = [q["lon"] for w in ways.values() for q in w["geometry"][:1]]
+lats = [q["lat"] for w in ways.values() for q in w["geometry"][:1]]
+W0, E0, S0, N0 = min(lons), max(lons), min(lats), max(lats)
+# OpenStreetMap first: it has the English and Arabic names
+opath = os.path.join(RAW, "pois.json")
+if os.path.exists(opath):
+    for e in load(opath)["elements"]:
+        t = e.get("tags", {})
+        c = e.get("center") or ({"lon": e["lon"], "lat": e["lat"]} if "lon" in e else None)
+        if not c or not t.get("name"):
+            continue
+        kind = next((OSM_KIND[(k, t[k])] for k in ("amenity", "shop", "tourism", "leisure", "railway", "public_transport")
+                     if (k, t.get(k)) in OSM_KIND), None)
+        if not kind:
+            pl = t.get("place")
+            kind = pl if pl in ("suburb", "neighbourhood", "quarter", "district", "city", "town", "village") else \
+                (t.get("amenity") or t.get("shop") or t.get("tourism") or t.get("leisure") or t.get("office") or
+                 t.get("healthcare") or t.get("historic") or ("building" if t.get("building") else "") or t.get("landuse") or "place")
+        w = BIG.get(kind, 2) + (1 if t.get("name:en") and t.get("name:ar") else 0) + (1 if t.get("wikidata") else 0)
+        addr = ", ".join(x for x in (t.get("addr:street"), t.get("addr:suburb") or t.get("addr:district"), t.get("addr:city")) if x)
+        add_place([t.get("name:en"), t.get("name"), t.get("name:ar"), t.get("int_name"), t.get("alt_name"), t.get("old_name"),
+                   t.get("short_name")], kind, c["lon"], c["lat"], addr, min(w, 9))
+# Overture: many more shops, clinics and offices, with addresses
+for path in (os.path.join(RAW, "overture_places_full.json"), os.path.join(RAW, "overture_places.json")):
+    if not os.path.exists(path):
+        continue
+    for pl in load(path):
+        if not pl.get("name"):
+            continue
+        cat = pl.get("cat") or ""
+        addr = ""
+        if pl.get("addr"):
+            a0 = pl["addr"][0]
+            addr = ", ".join(x for x in (a0.get("freeform"), a0.get("locality")) if x)[:90]
+        # Overture categories are sometimes wrong (a bookshop as a mall), so they count for less
+        w = min(BIG.get(cat, 2), 6 if (pl.get("conf") or 0) > 0.8 else 4) + (1 if pl.get("brand") else 0)
+        add_place([pl["name"]] + list((pl.get("common") or {}).values()), cat, pl["lon"], pl["lat"], addr, min(w, 9))
+    break  # the full file has everything the short one has
+# roads: one point per named road, English and Arabic names together
 road_pts = {}
-for f in ground_roads:
-    pr = f["properties"]
-    if pr["n"] and pr["c"] in ("major", "medium"):
-        g = f["geometry"]["coordinates"]
-        L = poly_len(g)
-        if L > road_pts.get(pr["n"], (0, None))[0]:
-            road_pts[pr["n"]] = (L, point_along(g, L / 2)[0])
-for n, (L, p) in road_pts.items():
-    if p:
-        search.append([n, "road", round(p[0], 6), round(p[1], 6)])
+for w in ways.values():
+    t = w["tags"]
+    if CLASS.get(t["highway"]) not in ("major", "medium", "minor") or not (t.get("name") or t.get("name:en")):
+        continue
+    key = t.get("name:en") or t.get("name")
+    g = [[q["lon"], q["lat"]] for q in w["geometry"]]
+    L = poly_len(g)
+    cur = road_pts.get(key)
+    if cur is None or L > cur[0]:
+        road_pts[key] = (L, point_along(g, L / 2)[0], [t.get("name:en"), t.get("name"), t.get("name:ar")],
+                         CLASS[t["highway"]])
+for key, (L, pt, nm, cls) in road_pts.items():
+    if pt:
+        add_place(nm, "road", pt[0], pt[1], "", 5 if cls == "major" else 4 if cls == "medium" else 2)
+seen = set()
+search = []
+for e in search_ix.values():
+    if id(e) not in seen:
+        seen.add(id(e))
+        search.append(e)
 report["search: places and roads"] = len(search)
 
 # ------------------------------------------------------------------ write
@@ -669,8 +942,9 @@ for w, g, cls, lanes, layer in bridge_ways:
         p, q = (g[i], g[i + 1]) if i < len(g) - 1 else (g[i - 1], g[i])
         hs.append(round(elev_seg(p, q, 0.0 if i < len(g) - 1 else 1.0, layer), 2))
     match_bridges.append({"id": w["id"], "name": name_of(w["tags"]), "oneway": 1 if w["tags"].get("oneway") == "yes" else 0,
-                          "c": g, "h": hs})
-match_ground = [{"name": f["properties"]["n"], "oneway": f["properties"]["ow"], "c": f["geometry"]["coordinates"]}
+                          "ms": speed.get(w["id"], 0), "c": g, "h": hs})
+match_ground = [{"name": f["properties"]["n"], "oneway": f["properties"]["ow"], "ms": f["properties"]["ms"],
+                 "c": f["geometry"]["coordinates"]}
                 for f in ground_roads if f["properties"]["c"] in ("major", "medium", "link")]
 dump("match.json", {"bridges": match_bridges, "ground": match_ground})
 dump("signs.json", {"signs": fc(signs), "names": names})

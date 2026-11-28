@@ -13,7 +13,11 @@ class MatchLine {
   /// Distance along the line at each vertex, metres.
   final List<double> cum;
 
-  MatchLine(this.name, this.oneway, this.isBridge, this.pts, this.heights) : cum = _cumulative(pts);
+  /// Posted speed limit in km/h (0 = not known). From OpenStreetMap, cleaned up
+  /// by tools/build_area.py so one road stretch has one limit.
+  final int maxSpeed;
+
+  MatchLine(this.name, this.oneway, this.isBridge, this.pts, this.heights, {this.maxSpeed = 0}) : cum = _cumulative(pts);
 
   static List<double> _cumulative(List<Vec> pts) {
     final out = <double>[0];
@@ -99,11 +103,11 @@ class MatchData {
     for (final b in (j['bridges'] as List)) {
       final c = (b['c'] as List).map((p) => Geo.toXY((p[0] as num).toDouble(), (p[1] as num).toDouble())).toList();
       final h = (b['h'] as List).map((v) => (v as num).toDouble()).toList();
-      lines.add(MatchLine(b['name'] ?? '', b['oneway'] == 1, true, c, h));
+      lines.add(MatchLine(b['name'] ?? '', b['oneway'] == 1, true, c, h, maxSpeed: (b['ms'] as num?)?.toInt() ?? 0));
     }
     for (final g in (j['ground'] as List)) {
       final c = (g['c'] as List).map((p) => Geo.toXY((p[0] as num).toDouble(), (p[1] as num).toDouble())).toList();
-      lines.add(MatchLine(g['name'] ?? '', g['oneway'] == 1, false, c, List.filled(c.length, 0)));
+      lines.add(MatchLine(g['name'] ?? '', g['oneway'] == 1, false, c, List.filled(c.length, 0), maxSpeed: (g['ms'] as num?)?.toInt() ?? 0));
     }
     return MatchData(lines);
   }

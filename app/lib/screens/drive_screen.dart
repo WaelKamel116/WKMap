@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:camera/camera.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show HapticFeedback, SystemSound, SystemSoundType, rootBundle;
 import 'package:geolocator/geolocator.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:material_ui/material_ui.dart';
@@ -13,6 +13,7 @@ import '../capture/road_capture.dart';
 import '../geo/geo.dart';
 import '../map/city_tiles.dart';
 import '../map/map_layers.dart';
+import '../nav/camera_alerts.dart';
 import '../nav/car_smoother.dart';
 import '../nav/level_detector.dart';
 import '../nav/map_matcher.dart';
@@ -65,6 +66,9 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
 
   bool _live = false;
   bool _follow = true;
+  DateTime _lastTouch = DateTime(2000);
+  CameraAlerts? _cams;
+  CameraAlert? _camAlert;
   LevelEstimate? _est;
   PositionSample? _lastPos;
   double? _lastPressure;
@@ -114,7 +118,10 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WakelockPlus.enable();
-    _signalTimer = Timer.periodic(const Duration(seconds: 1), (_) => _animateSignals());
+    _signalTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _animateSignals();
+      _autoRecentre();
+    });
     _frame = Timer.periodic(const Duration(milliseconds: 50), (_) => _drawFrame());
     _load();
   }
@@ -123,6 +130,9 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
     final route = RouteData.fromJson(jsonDecode(await rootBundle.loadString('assets/data/route.json')) as Map<String, dynamic>);
     final match = MatchData.fromJson(jsonDecode(await rootBundle.loadString('assets/data/match.json')) as Map<String, dynamic>);
     await _tiles.init();
+    try {
+      _cams = await CameraAlerts.load();
+    } catch (_) {}
     setState(() {
       _route = _demoRoute = route;
       _detector = LevelDetector(match);
@@ -166,7 +176,15 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
         final match = _matcher!.update(xy, accuracy: p.accuracy, speed: p.speed, heading: p.heading, onFlyover: e.onFlyover);
         _smooth.addFix(xy, speed: p.speed, gpsHeading: p.heading, deckHeight: e.onFlyover ? (e.mapHeight ?? 0) : 0, match: match);
         _trackProgress(match?.point ?? xy);
-        setState(() => _est = e);
+        final alert = _cams?.update(match?.point ?? xy, p.heading, p.speed);
+        if (alert != null && alert.isNew) {
+          HapticFeedback.heavyImpact();
+          SystemSound.play(SystemSoundType.alert);
+        }
+        setState(() {
+          _est = e;
+          _camAlert = alert;
+        });
       case YawSample y:
         _smooth.addYaw(y.dps, y.dt);
     }
@@ -298,6 +316,29 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
     await _map?.setStyle(baseStyle(t)); // reloads the style; _onStyleLoaded draws the new look
   }
 
+  /// Back to following the car, at the chosen view's own zoom, tilt and
+  /// look-ahead (whatever the driver did to the map), with a short glide.
+  Future<void> _recentre() async {
+    final c = _map;
+    if (c != null && _smooth.ready && _styleReady) {
+      final ll = Geo.toLonLat(_smooth.pos!);
+      try {
+        await c.animateCamera(CameraUpdate.newCameraPosition(_cameraAt(ll[1], ll[0], _smooth.heading)),
+            duration: const Duration(milliseconds: 650));
+      } catch (_) {}
+    } else {
+      _cameraAt(0, 0, 0); // reset zoom, tilt and look-ahead to the view's own
+    }
+    if (mounted) setState(() => _follow = true);
+  }
+
+  /// While driving, the map goes back to following the car 12 s after the
+  /// driver last touched it (as Google and Apple Maps do).
+  void _autoRecentre() {
+    if (_follow || _options != null || !(_live || _active != null)) return;
+    if (DateTime.now().difference(_lastTouch).inSeconds >= 12) _recentre();
+  }
+
   Future<void> _setView(CamView v) async {
     setState(() {
       _view = v;
@@ -345,7 +386,7 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
   /// blue dot and moves the map there.
   Future<void> _goToMe() async {
     if (_live) {
-      setState(() => _follow = true);
+      await _recentre();
       return;
     }
     if (!await Geolocator.isLocationServiceEnabled()) {
@@ -601,6 +642,7 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
     }
     if (_logger.recording) await _logger.stop();
     await _logger.start('${_source?.label ?? ''} + road capture', dir: dir);
+    _capture.onLane = _logger.lane;
     _captureTick = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
@@ -651,8 +693,10 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
         // any touch on the map stops the camera following, so the map can be moved freely
         Listener(
           onPointerDown: (_) {
+            _lastTouch = DateTime.now();
             if (_follow) setState(() => _follow = false);
           },
+          onPointerUp: (_) => _lastTouch = DateTime.now(),
           child: MapLibreMap(
             styleString: _initialStyle,
             initialCameraPosition: const CameraPosition(target: LatLng(30.0725, 31.3460), zoom: 16.5, tilt: 55, bearing: 180),
@@ -678,7 +722,12 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
                 const SizedBox(height: 6),
               ],
               _LevelPill(est: _est),
+              if (_camAlert != null) ...[
+                const SizedBox(height: 6),
+                _CameraBanner(alert: _camAlert!, speedKmh: speedKmh),
+              ],
               const Spacer(),
+              if (!_follow && _options == null) _RecentreButton(view: _view, onTap: _recentre),
               if (_options == null) _MapButtons(onMe: _goToMe, onOptions: _openOptions, onTools: _openTools, theme: _theme),
               if (_capture.camera != null) _CapturePreview(capture: _capture),
               if (_message != null) _Note(text: _message!, onClose: () => setState(() => _message = null)),
@@ -710,6 +759,7 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
               else
                 _DriveBar(
                   speedKmh: speedKmh,
+                  limit: _matcher?.current?.line.maxSpeed ?? 0,
                   follow: _follow,
                   routing: _routing,
                   recording: _logger.recording || _capture.active,
@@ -718,7 +768,7 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
                   trafficDelay: opt?.trafficDelay,
                   onSearch: _openSearch,
                   onEnd: _endRoute,
-                  onFollow: () => setState(() => _follow = true),
+                  onFollow: _recentre,
                 ),
             ]),
           ),
@@ -1048,6 +1098,7 @@ class _LevelPill extends StatelessWidget {
 class _DriveBar extends StatelessWidget {
   const _DriveBar({
     required this.speedKmh,
+    required this.limit,
     required this.follow,
     required this.routing,
     required this.recording,
@@ -1059,6 +1110,9 @@ class _DriveBar extends StatelessWidget {
     required this.onFollow,
   });
   final double speedKmh;
+
+  /// Speed limit of the road the car is on, km/h (0 = not known).
+  final int limit;
   final bool follow, routing, recording;
   final double? remaining, eta, trafficDelay;
   final VoidCallback onSearch, onEnd, onFollow;
@@ -1115,16 +1169,27 @@ class _DriveBar extends StatelessWidget {
           ),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Text(speedKmh.round().toString(),
-                style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, height: 1.0, fontFeatures: [FontFeature.tabularFigures()])),
+                style: TextStyle(color: limit > 0 && speedKmh > limit + 3 ? const Color(0xFFFF5A52) : Colors.white, fontSize: 20, fontWeight: FontWeight.w800, height: 1.0, fontFeatures: [FontFeature.tabularFigures()])),
             const Text('km/h', style: TextStyle(color: Colors.white54, fontSize: 9)),
           ]),
         ),
+        if (limit > 0) ...[
+          const SizedBox(width: 6),
+          // the posted limit, like the round sign
+          Container(
+            width: 42,
+            height: 42,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white,
+              border: Border.all(color: const Color(0xFFD7262E), width: 5),
+            ),
+            child: Text('$limit', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 15, height: 1.0)),
+          ),
+        ],
         const SizedBox(width: 10),
         Expanded(child: middle),
-        if (!follow) ...[
-          const SizedBox(width: 6),
-          IconButton.filledTonal(onPressed: onFollow, icon: const Icon(Icons.navigation), tooltip: 'Follow car'),
-        ],
         if (navigating) ...[
           const SizedBox(width: 6),
           IconButton.filled(
@@ -1135,6 +1200,83 @@ class _DriveBar extends StatelessWidget {
           ),
         ],
       ]),
+    );
+  }
+}
+
+/// Shown when the driver moved the map: back to following the car in the
+/// chosen view, at its own zoom and tilt.
+class _RecentreButton extends StatelessWidget {
+  const _RecentreButton({required this.view, required this.onTap});
+  final CamView view;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: FilledButton.icon(
+            onPressed: onTap,
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF2B63C9),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              elevation: 4,
+            ),
+            icon: const Icon(Icons.navigation, size: 20),
+            label: Text('Re-centre · ${view.label}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+          ),
+        ),
+      );
+}
+
+/// "Speed camera in 350 m", with the limit it checks; red when driving faster.
+class _CameraBanner extends StatelessWidget {
+  const _CameraBanner({required this.alert, required this.speedKmh});
+  final CameraAlert alert;
+  final double speedKmh;
+
+  @override
+  Widget build(BuildContext context) {
+    final limit = alert.camera.limit;
+    final fast = limit > 0 && speedKmh > limit;
+    final d = alert.distance;
+    final dist = d < 30 ? 'here' : 'in ${d < 1000 ? '${(d / 10).round() * 10} m' : '${(d / 1000).toStringAsFixed(1)} km'}';
+    return Align(
+      alignment: Alignment.topLeft,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(8, 6, 12, 6),
+        decoration: BoxDecoration(
+          color: fast ? const Color(0xF2B3261E) : const Color(0xF213306E),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: fast ? const Color(0xFFFF8A80) : const Color(0xFF8FB8FF), width: 1.2),
+          boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 8, offset: Offset(0, 2))],
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 20),
+          const SizedBox(width: 8),
+          Text('Speed camera $dist', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
+          if (limit > 0) ...[
+            const SizedBox(width: 10),
+            Container(
+              width: 30,
+              height: 30,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+                border: Border.all(color: const Color(0xFFD7262E), width: 3.5),
+              ),
+              child: Text('$limit', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 11, height: 1.0)),
+            ),
+          ],
+          if (fast) ...[
+            const SizedBox(width: 8),
+            const Text('SLOW DOWN', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 0.6)),
+          ],
+        ]),
+      ),
     );
   }
 }
@@ -1266,6 +1408,16 @@ class _ToolsSheetState extends State<_ToolsSheet> {
             Expanded(
                 child: stat(
                     h._smooth.gyro.trusted ? 'on' : (h._live ? 'learning' : 'simulated'), 'GYRO (offset ${h._smooth.gyro.bias.toStringAsFixed(1)}°/s)')),
+            Expanded(
+              flex: 2,
+              child: stat(
+                  !h._capture.active
+                      ? 'capture off'
+                      : h._capture.lanes.last == null || DateTime.now().difference(h._capture.lanes.last!.time).inSeconds > 3
+                          ? (h._capture.lanes.ready ? 'no lines' : 'learning view')
+                          : '${h._capture.lanes.last!.lane} of ${h._capture.lanes.last!.lanes}',
+                  'CAMERA LANE'),
+            ),
             Expanded(
               flex: 3,
               child: stat(h._matcher?.current == null ? 'off main roads' : (h._matcher!.current!.line.name.isEmpty ? 'unnamed road' : h._matcher!.current!.line.name),

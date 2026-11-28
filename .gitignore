@@ -21,3 +21,5 @@ build_tmp/
 # greater-area downloads (re-downloadable, large); keep only the planned route
 raw/greater/*
 !raw/greater/route_osrm.json
+# lane readings from capture videos: they hold the drive track (private)
+raw/lanes/

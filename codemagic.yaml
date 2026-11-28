@@ -29,8 +29,9 @@ workflows:
       - name: Build IPA
         script: |
           # Codemagic's BUILD_NUMBER rises with every build, so TestFlight never sees a duplicate.
-          # TOMTOM_KEY (optional, add it in Codemagic > Environment variables) turns on live traffic
-          flutter build ipa --release --build-number=$BUILD_NUMBER --dart-define=TOMTOM_KEY=${TOMTOM_KEY:-} --export-options-plist=/Users/builder/export_options.plist
+          # TOMTOM_KEY (live traffic, TomTom search) and GOOGLE_PLACES_KEY (Google search) are optional:
+          # add them in Codemagic > Environment variables
+          flutter build ipa --release --build-number=$BUILD_NUMBER --dart-define=TOMTOM_KEY=${TOMTOM_KEY:-} --dart-define=GOOGLE_PLACES_KEY=${GOOGLE_PLACES_KEY:-} --export-options-plist=/Users/builder/export_options.plist
     artifacts:
       - "**/build/ios/ipa/*.ipa"
     publishing:
