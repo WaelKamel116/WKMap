@@ -13,8 +13,8 @@ Proves the core idea on a real phone: **is the car up on the flyover or on the r
 - **Map buttons** (right edge):
   - **Move to my location**: in Live GPS it follows the car again; in Simulated it finds the phone's real position, shows a blue dot and moves the map there.
   - **Map options**:
-    - Look: **Night** (default), **Day**, or **Game**. Game is a bright arcade look with coloured buildings, white lane paint, yellow kerbs, a glowing route, a small 3D car and 3D traffic lights that cycle green, amber and red. The cycling is for show, not real signal timing.
-    - Camera: **3D**, **Close** (low chase camera, the default in Game), or **Top-down** (north up).
+    - Look: **Night** (default), **Day**, **Game**, **Neon** (dark city, glowing cyan and magenta road edges, neon-green route) or **Toy** (mint ground, pastel buildings, orange route). Game, Neon and Toy have the 3D car and 3D traffic lights. Game is a bright arcade look with coloured buildings, white lane paint, yellow kerbs, a glowing route, a small 3D car and 3D traffic lights that cycle green, amber and red. The cycling is for show, not real signal timing.
+    - Camera: **3D**, **Close** (game chase camera, the default in the game looks), **Street** (very low, buildings tower over the car), **Look ahead** (car at the bottom, long view up the road), **Helicopter** (high and wide), **Auto zoom** (close when slow, wider and looking further ahead when fast), **Overview** (flat, heading up) or **Top-down** (north up). Switching glides between views.
     - Switches for 3D buildings, traffic lights, and road signs with street names.
 - **Screen layout** (map first):
   - Top: a one-line pill showing Ground / On flyover and the road name. While navigating, the next turn shows above it.
@@ -80,20 +80,29 @@ Bundle id: `com.smarttechsys.caironav`. Trips are saved in the app's Documents f
 3. Codemagic: sign up, add the repo, Team settings > Integrations > App Store Connect: add the key with the name `CairoNav ASC key`.
 4. Start the `ios-testflight` workflow. About 20 minutes later the build appears in TestFlight on your iPhone.
 
-## Map data: City Stars to Cairo Festival City (current)
-`assets/data/` covers Nasr City to New Cairo. Built by merging several open sources with `../tools/build_area.py`:
-- **OpenStreetMap:** roads, flyovers (with layer for stacked bridges), traffic lights, parks.
-- **Overture Maps:** buildings already merged from OpenStreetMap, Microsoft and **Google Open Buildings**, plus 13,000+ places (shops, clinics, banks) used to mark commercial buildings.
+## Map data: Nasr City, Heliopolis and New Cairo (current)
+`assets/data/` covers the box 29.98-30.135 N, 31.29-31.52 E: Heliopolis, Nasr City, the airport road, the Ring Road and New Cairo (Fifth Settlement, Rehab edge). Built by merging several open sources with `../tools/build_area.py --whole`:
+- **OpenStreetMap:** roads, flyovers (with layer for stacked bridges), traffic lights, speed limits, speed cameras, crossings, parks.
+- **Overture Maps:** buildings already merged from OpenStreetMap, Microsoft and **Google Open Buildings**, plus about 31,600 places (shops, clinics, banks) used for search and to mark commercial buildings.
 - **Microsoft footprints (raw):** gap-filler where no other source has a building.
-- Checks in the build: duplicates across sources, buildings sitting on roads or flyovers, tiny or low-confidence shapes, coverage against raw Microsoft footprints (96 %). The report is saved in `assets/data/sources.json`.
-- Heights are **estimated** (no source has real heights for Cairo): Nasr City blocks 6 to 12 floors, New Cairo villas 2 to 3, malls, hospitals and offices by type.
-- Main roads and flyovers cover the whole area; buildings and small streets a 500 m strip along the route.
+- **Result:** 174,573 buildings and 40,708 street pieces.
+- **Checks in the build:** duplicates across sources, buildings sitting on roads or flyovers, tiny or low-confidence shapes, and coverage against raw Microsoft footprints (97 %). The report is saved in `assets/data/sources.json`.
+- **Heights are estimated** (no source has real heights for Cairo):
+  - Nasr City blocks: 6 to 12 floors.
+  - Heliopolis: 4 to 8 floors.
+  - New Cairo villas: 2 to 3 floors.
+  - Malls, hospitals and offices: by type.
+- **Tiles:**
+  - Buildings, small streets and parks are split into 417 tiles of 0.01 degree (about 1 km) in `assets/data/tiles/`. The app shows the 3 x 3 tiles around the car, or around the middle of the screen when you move the map, and swaps them as you drive.
+  - Main roads, flyovers, signs and the search index are single files for the whole area.
+  - Street-name plates are drawn only for streets in the loaded tiles.
 
-Rebuild:
+Rebuild (from the repo root):
 ```
-python ../tools/fetch_area.py ../raw/cfc 30.015 31.325 30.100 31.430      # OSM (Overpass)
-python ../tools/fetch_overture.py ../raw/cfc 30.015 31.325 30.100 31.430  # Overture (pip install duckdb)
-python ../tools/build_area.py cfc --extra-route raw/route3.json            # run from the repo root
+python tools/fetch_area.py raw/greater 29.98 31.29 30.135 31.52 --only roads.json   # OSM (Overpass); also areas.json, signs.json
+python tools/fetch_overture.py raw/greater 29.98 31.29 30.135 31.52                 # Overture (pip install duckdb)
+python tools/ms_box.py raw/ms/cairo.csv.gz raw/greater/ms_box.json 29.98 31.29 30.135 31.52
+python tools/build_area.py greater --extra-route raw/route3.json --whole
 ```
 
 ## Data

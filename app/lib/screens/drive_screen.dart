@@ -11,6 +11,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../capture/road_capture.dart';
 import '../geo/geo.dart';
+import '../map/city_tiles.dart';
 import '../map/map_layers.dart';
 import '../nav/car_smoother.dart';
 import '../nav/level_detector.dart';
@@ -22,15 +23,22 @@ import '../sensors/drive_source.dart';
 import '../sensors/trip_logger.dart';
 import 'search_screen.dart';
 
-/// How the camera follows the car.
+/// How the camera follows the car: zoom, tilt, and how far ahead of the car
+/// the camera looks (metres; the car sits lower on screen the further ahead).
 enum CamView {
-  follow3d('3D', Icons.threed_rotation),
-  chase('Close', Icons.directions_car),
-  top('Top-down', Icons.map_outlined);
+  follow3d('3D', Icons.threed_rotation, 'Standard driving view', 17.2, 60, 0),
+  chase('Close', Icons.directions_car, 'Game camera just behind the car', 18.4, 60, 0),
+  street('Street', Icons.location_city, 'Very low and close: buildings tower over the car', 19.3, 60, 14),
+  lookAhead('Look ahead', Icons.visibility_outlined, 'Car at the bottom, long view up the road', 17.5, 60, 110),
+  heli('Helicopter', Icons.flight, 'High and wide, follows from above', 16.2, 42, 50),
+  auto('Auto zoom', Icons.speed, 'Close when slow, wider and further ahead when fast', 18.6, 60, 0),
+  overview('Overview', Icons.zoom_out_map, 'Flat, heading up, a few km around', 14.8, 0, 180),
+  top('Top-down', Icons.map_outlined, 'Flat, north up', 16.3, 0, 0);
 
-  const CamView(this.label, this.icon);
-  final String label;
+  const CamView(this.label, this.icon, this.hint, this.zoom, this.tilt, this.aheadM);
+  final String label, hint;
   final IconData icon;
+  final double zoom, tilt, aheadM;
 }
 
 /// Milestone 1 screen: 3D map, live or simulated position, the flyover level
@@ -80,6 +88,12 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
 
   // search and routing
   final _search = PlaceSearch();
+  final _tiles = CityTiles();
+  SignSet? _signs;
+  bool _tilesBusy = false;
+
+  // camera eased towards the chosen view, so switching views glides
+  double _camZoom = 17.2, _camTilt = 60, _camAhead = 0;
   Place? _dest;
   RoutePrefs _prefs = const RoutePrefs();
   List<RouteOption>? _options; // shown while the driver picks a route
@@ -106,6 +120,7 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
   Future<void> _load() async {
     final route = RouteData.fromJson(jsonDecode(await rootBundle.loadString('assets/data/route.json')) as Map<String, dynamic>);
     final match = MatchData.fromJson(jsonDecode(await rootBundle.loadString('assets/data/match.json')) as Map<String, dynamic>);
+    await _tiles.init();
     setState(() {
       _route = _demoRoute = route;
       _detector = LevelDetector(match);
@@ -163,7 +178,10 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
       _smooth.step(math.min(dt, 0.2));
       final ll = Geo.toLonLat(_smooth.pos!);
       await c.setGeoJsonSource('puck', puckGeoJson(ll[0], ll[1], _smooth.heading, _smooth.height, theme: _theme));
-      if (_follow) await c.moveCamera(CameraUpdate.newCameraPosition(_cameraAt(ll[1], ll[0], _smooth.heading)));
+      if (_follow) {
+        await c.moveCamera(CameraUpdate.newCameraPosition(_cameraAt(ll[1], ll[0], _smooth.heading, dt: math.min(dt, 0.2))));
+        _updateTiles(ll[0], ll[1]);
+      }
     } catch (_) {
       // style reloading
     } finally {
@@ -171,14 +189,54 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
     }
   }
 
-  CameraPosition _cameraAt(double lat, double lon, double heading) {
-    switch (_view) {
-      case CamView.follow3d:
-        return CameraPosition(target: LatLng(lat, lon), zoom: 17.2, tilt: 60, bearing: heading);
-      case CamView.chase:
-        return CameraPosition(target: LatLng(lat, lon), zoom: 18.4, tilt: 60, bearing: heading);
-      case CamView.top:
-        return CameraPosition(target: LatLng(lat, lon), zoom: 16.3, tilt: 0, bearing: 0);
+  /// Camera for the chosen view. With [dt] the zoom, tilt and look-ahead ease
+  /// towards the view (about half a second), otherwise they jump there.
+  CameraPosition _cameraAt(double lat, double lon, double heading, {double? dt}) {
+    final v = _view;
+    var zoom = v.zoom, tilt = v.tilt, ahead = v.aheadM;
+    if (v == CamView.auto) {
+      // 0 km/h: close behind the car; 100+ km/h: two zoom levels wider, looking 3 s ahead
+      final f = (((_lastPos?.speed ?? 0) * 3.6) / 100).clamp(0.0, 1.0);
+      zoom -= 2.2 * f;
+      tilt -= 12 * f;
+      ahead = (_lastPos?.speed ?? 0) * 3;
+    }
+    if (dt == null) {
+      _camZoom = zoom;
+      _camTilt = tilt;
+      _camAhead = ahead;
+    } else {
+      final k = 1 - math.exp(-dt * (v == CamView.auto ? 1.2 : 4));
+      _camZoom += (zoom - _camZoom) * k;
+      _camTilt += (tilt - _camTilt) * k;
+      _camAhead += (ahead - _camAhead) * k;
+    }
+    final bearing = v == CamView.top ? 0.0 : heading;
+    var target = [lon, lat];
+    if (_camAhead.abs() > 0.5) {
+      final r = bearing * math.pi / 180;
+      target = Geo.toLonLat(Geo.toXY(lon, lat) + Vec(math.sin(r), math.cos(r)) * _camAhead);
+    }
+    return CameraPosition(target: LatLng(target[1], target[0]), zoom: _camZoom, tilt: _camTilt, bearing: bearing);
+  }
+
+  /// Swap in the buildings, small streets and parks around (lon, lat) when the
+  /// car (or the map centre) has moved into another tile.
+  Future<void> _updateTiles(double lon, double lat) async {
+    final c = _map;
+    if (c == null || !_styleReady || _tilesBusy || !_tiles.needsUpdate(lon, lat)) return;
+    _tilesBusy = true;
+    try {
+      final t = await _tiles.around(lon, lat);
+      await c.setGeoJsonSource('buildings', t['b']!);
+      await c.setGeoJsonSource('roads-local', t['r']!);
+      await c.setGeoJsonSource('areas', t['a']!);
+      final box = _tiles.shownBox, signs = _signs;
+      if (box != null && signs != null) await drawNamePlates(c, signs, box);
+    } catch (_) {
+      _tiles.reset(); // style was reloading; try again next frame
+    } finally {
+      _tilesBusy = false;
     }
   }
 
@@ -194,6 +252,10 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
     }
     if (theme != _theme) return;
     _styleReady = true;
+    _signs = null;
+    _tiles.reset();
+    final centre = _smooth.ready ? Geo.toLonLat(_smooth.pos!) : [r.sample(0).lon, r.sample(0).lat];
+    await _updateTiles(centre[0], centre[1]);
     await _applyVisibility();
     await _showMe();
     if (_options != null) {
@@ -208,14 +270,23 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
           target: LatLng(p0.lat, p0.lon), zoom: 16.5, tilt: 55, bearing: p1.heading)));
     }
     _cameraPlaced = true;
+    // road signs last: drawing the street-name plates takes a few seconds
+    try {
+      final signs = await addSignLayers(c, theme);
+      if (theme != _theme) return;
+      _signs = signs;
+      final box = _tiles.shownBox;
+      if (box != null) await drawNamePlates(c, signs, box);
+      await _applyVisibility();
+    } catch (_) {}
   }
 
   Future<void> _setTheme(MapTheme t) async {
     if (t == _theme) return;
     setState(() {
       _theme = t;
-      if (t == MapTheme.game && _view == CamView.follow3d) _view = CamView.chase;
-      if (t != MapTheme.game && _view == CamView.chase) _view = CamView.follow3d;
+      if (t.arcade && _view == CamView.follow3d) _view = CamView.chase;
+      if (!t.arcade && _view == CamView.chase) _view = CamView.follow3d;
     });
     _styleReady = false;
     await _map?.setStyle(baseStyle(t)); // reloads the style; _onStyleLoaded draws the new look
@@ -249,7 +320,7 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
   /// Game look: step every traffic light through green, amber and red.
   Future<void> _animateSignals() async {
     final c = _map;
-    if (c == null || !_styleReady || _theme != MapTheme.game || _signalPts.isEmpty || !_showSignals) return;
+    if (c == null || !_styleReady || !_theme.arcade || _signalPts.isEmpty || !_showSignals) return;
     _tick++;
     try {
       await c.setGeoJsonSource('signal-pts', signalGlowGeoJson(_signalPts, _tick));
@@ -584,6 +655,12 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
             tiltGesturesEnabled: true,
             onMapCreated: (c) => _map = c,
             onStyleLoadedCallback: _onStyleLoaded,
+            trackCameraPosition: true,
+            onCameraIdle: () {
+              // map moved by hand: load the tiles around the middle of the screen
+              final cam = _map?.cameraPosition;
+              if (!_follow && cam != null) _updateTiles(cam.target.longitude, cam.target.latitude);
+            },
           ),
         ),
         SafeArea(
@@ -865,33 +942,29 @@ class _OptionsSheet extends StatelessWidget {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('MAP LOOK', style: head),
           const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: SegmentedButton<MapTheme>(
-              segments: const [
-                ButtonSegment(value: MapTheme.night, label: Text('Night'), icon: Icon(Icons.dark_mode_outlined)),
-                ButtonSegment(value: MapTheme.day, label: Text('Day'), icon: Icon(Icons.light_mode_outlined)),
-                ButtonSegment(value: MapTheme.game, label: Text('Game'), icon: Icon(Icons.sports_esports_outlined)),
-              ],
-              selected: {theme},
-              onSelectionChanged: (s) => onTheme(s.first),
-            ),
+          Wrap(spacing: 8, runSpacing: 4, children: [
+            for (final t in MapTheme.values)
+              ChoiceChip(
+                avatar: Icon(_themeIcon(t), size: 18),
+                label: Text(t.label),
+                selected: t == theme,
+                onSelected: (_) => onTheme(t),
+              ),
+          ]),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(_themeHint(theme), style: const TextStyle(color: Colors.white54, fontSize: 12)),
           ),
-          if (theme == MapTheme.game)
-            const Padding(
-              padding: EdgeInsets.only(top: 6),
-              child: Text('Bright city, 3D car and working 3D traffic lights.', style: TextStyle(color: Colors.white54, fontSize: 12)),
-            ),
           const SizedBox(height: 18),
           const Text('CAMERA', style: head),
           const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: SegmentedButton<CamView>(
-              segments: [for (final v in CamView.values) ButtonSegment(value: v, label: Text(v.label), icon: Icon(v.icon))],
-              selected: {view},
-              onSelectionChanged: (s) => onView(s.first),
-            ),
+          Wrap(spacing: 8, runSpacing: 4, children: [
+            for (final v in CamView.values)
+              ChoiceChip(avatar: Icon(v.icon, size: 18), label: Text(v.label), selected: v == view, onSelected: (_) => onView(v)),
+          ]),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(view.hint, style: const TextStyle(color: Colors.white54, fontSize: 12)),
           ),
           const SizedBox(height: 10),
           SwitchListTile(
@@ -1082,7 +1155,7 @@ class _MapButtons extends StatelessWidget {
             onPressed: onOptions,
             style: style,
             tooltip: 'Map options',
-            icon: Icon(theme == MapTheme.game ? Icons.sports_esports : Icons.layers_outlined),
+            icon: Icon(theme.arcade ? Icons.sports_esports : Icons.layers_outlined),
           ),
           const SizedBox(height: 8),
           IconButton(onPressed: onTools, style: style, tooltip: 'Test tools', icon: const Icon(Icons.science_outlined)),
@@ -1192,3 +1265,19 @@ class _ToolsSheetState extends State<_ToolsSheet> {
     );
   }
 }
+
+IconData _themeIcon(MapTheme t) => switch (t) {
+      MapTheme.night => Icons.dark_mode_outlined,
+      MapTheme.day => Icons.light_mode_outlined,
+      MapTheme.game => Icons.sports_esports_outlined,
+      MapTheme.neon => Icons.blur_on,
+      MapTheme.toy => Icons.toys_outlined,
+    };
+
+String _themeHint(MapTheme t) => switch (t) {
+      MapTheme.night => 'Dark, calm colours for driving at night.',
+      MapTheme.day => 'Light map for daytime.',
+      MapTheme.game => 'Bright city, 3D car and working 3D traffic lights.',
+      MapTheme.neon => 'Dark city with glowing road edges and a neon route; 3D car and lights.',
+      MapTheme.toy => 'Soft toy-town colours, pastel buildings; 3D car and lights.',
+    };

@@ -22,7 +22,11 @@ Merge rules (each step is counted in the report at the end):
   4. Flyovers: OSM bridge ways; deck height 7 m per OSM layer (layer 2 = 14 m), ramps at 5.5 %
      measured along the structure from its free ends.
 
-Usage: python tools/build_area.py cfc [--extra-route raw/route3.json] [--out app/assets/data]
+Output: main roads, flyovers, signs, places and the route as single files; buildings, small
+streets and parks split into 0.01 degree tiles (about 1 km) in tiles/, which the app loads around
+the car as it drives.
+
+Usage: python tools/build_area.py cfc [--extra-route raw/route3.json] [--out app/assets/data] [--whole]
 """
 import argparse, hashlib, heapq, json, math, os
 from collections import Counter
@@ -32,6 +36,8 @@ ap.add_argument("area")
 ap.add_argument("--extra-route", action="append", default=[], help="more OSRM route files whose corridor is kept")
 ap.add_argument("--out", default="app/assets/data")
 ap.add_argument("--corridor", type=float, default=500.0)
+ap.add_argument("--whole", action="store_true",
+                help="keep buildings, small streets and parks for the whole box (not just along the routes)")
 args = ap.parse_args()
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -95,6 +101,11 @@ def near_route(c, m=args.corridor):
                 if dist(p, c) < m + 25:  # +25: half the 40 m sample spacing
                     return True
     return False
+
+
+if args.whole:
+    def near_route(c, m=None):  # noqa: F811 - whole box: everything counts as near
+        return True
 
 
 # ------------------------------------------------------------------ roads
@@ -416,6 +427,11 @@ def places_in(x):
     return out
 
 
+def heliopolis(c):
+    # Heliopolis / Masr El Gedida, north-west of Nasr City: older 4-8 floor blocks and villas
+    return c[1] > 30.083 and c[0] < 31.355
+
+
 def new_cairo(c):
     # east of the Ring Road / south-east of Nasr City: villas and compounds, low-rise
     return c[0] > 31.395 or (c[1] < 30.045 and c[0] > 31.36)
@@ -439,6 +455,8 @@ def est_height(x, inside):
         lv = 6 + int(r * 8)
     elif a < 60:
         lv = 1 + int(r * 2)
+    elif heliopolis(c) and a < 1500:
+        lv = (3 + int(r * 3)) if a < 250 else (4 + int(r * 5))
     elif new_cairo(c):
         lv = (2 + int(r * 2)) if a < 700 else (4 + int(r * 4)) if a < 3000 else (3 + int(r * 3))
     elif a < 150:
@@ -597,8 +615,52 @@ report["search: places and roads"] = len(search)
 print("writing to", OUT)
 dump("route.json", {"coords": [[c[0], c[1]] for c in rd], "elev": rel, "cum": [round(c, 1) for c in cum],
                     "maneuvers": maneuvers, "distance": round(cum[-1], 1)})
-dump("buildings.json", fc(bfeat))
-dump("ground.json", {"roads": fc(ground_roads), "areas": fc(areas), "signals": fc(signals)})
+# tiles: buildings, small streets and parks, so the phone only holds what is around the car
+TS = 0.01
+tiles = {}
+
+
+def tile_of(c): return f"{int(math.floor(c[0] / TS))}_{int(math.floor(c[1] / TS))}"
+
+
+def r5(ring): return [[round(p[0], 5), round(p[1], 5)] for p in ring]
+
+
+for f in bfeat:
+    ring = f["geometry"]["coordinates"][0]
+    t = tiles.setdefault(tile_of(centroid(ring)), {"b": [], "r": [], "a": []})
+    t["b"].append({"type": "Feature", "properties": {"h": f["properties"]["h"], "com": f["properties"]["com"]},
+                   "geometry": {"type": "Polygon", "coordinates": [r5(ring)]}})
+main_roads = []
+for f in ground_roads:
+    g = f["geometry"]["coordinates"]
+    if f["properties"]["c"] in ("major", "medium", "link"):
+        main_roads.append(f)
+    else:
+        tiles.setdefault(tile_of(g[len(g) // 2]), {"b": [], "r": [], "a": []})["r"].append(
+            {"type": "Feature", "properties": f["properties"], "geometry": {"type": "LineString", "coordinates": r5(g)}})
+for f in areas:
+    ring = f["geometry"]["coordinates"][0]
+    tiles.setdefault(tile_of(centroid(ring)), {"b": [], "r": [], "a": []})["a"].append(
+        {"type": "Feature", "properties": f["properties"], "geometry": {"type": "Polygon", "coordinates": [r5(ring)]}})
+tdir = os.path.join(OUT, "tiles")
+os.makedirs(tdir, exist_ok=True)
+for old in os.listdir(tdir):
+    os.remove(os.path.join(tdir, old))
+tile_bytes = 0
+for k, t in tiles.items():
+    with open(os.path.join(tdir, f"{k}.json"), "w", encoding="utf-8") as fh:
+        json.dump(t, fh, ensure_ascii=False, separators=(",", ":"))
+    tile_bytes += os.path.getsize(os.path.join(tdir, f"{k}.json"))
+with open(os.path.join(tdir, "index.json"), "w") as fh:
+    json.dump({"size": TS, "tiles": {k: len(t["b"]) for k, t in tiles.items()}}, fh)
+report["tiles"] = len(tiles)
+report["tiles: most buildings in one"] = max(len(t["b"]) for t in tiles.values())
+print(f"  tiles/           {tile_bytes // 1024:6d} KB in {len(tiles)} tiles")
+old_b = os.path.join(OUT, "buildings.json")
+if os.path.exists(old_b):
+    os.remove(old_b)
+dump("ground.json", {"roads": fc(main_roads), "signals": fc(signals)})
 dump("bridges.json", {"decks": fc(decks), "pillars": fc(pillars), "lines": fc(bridge_lines)})
 match_bridges = []
 for w, g, cls, lanes, layer in bridge_ways:

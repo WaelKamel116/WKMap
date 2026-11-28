@@ -18,3 +18,6 @@ raw/cfc/areas.json
 raw/cfc/overture_*.json
 raw/cfc/ms_box.json
 build_tmp/
+# greater-area downloads (re-downloadable, large); keep only the planned route
+raw/greater/*
+!raw/greater/route_osrm.json

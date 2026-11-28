@@ -10,7 +10,19 @@ import '../nav/routing.dart';
 import 'sign_icons.dart';
 
 /// Map looks the driver can switch between.
-enum MapTheme { night, day, game }
+enum MapTheme {
+  night('Night'),
+  day('Day'),
+  game('Game'),
+  neon('Neon'),
+  toy('Toy');
+
+  const MapTheme(this.label);
+  final String label;
+
+  /// Game-style looks: 3D car, working 3D traffic lights, glowing route.
+  bool get arcade => this == game || this == neon || this == toy;
+}
 
 /// Colours for one map look. [night] is the original in-car style.
 class MapPalette {
@@ -55,7 +67,32 @@ class MapPalette {
     ui: 0xFF3E3A52,
   );
 
-  static MapPalette of(MapTheme t) => switch (t) { MapTheme.night => night, MapTheme.day => day, MapTheme.game => game };
+  /// Dark city with glowing cyan and magenta road edges and a neon-green route.
+  static const neon = MapPalette(
+    ground: '#05060B', green: '#0B1F16', pitch: '#0E2A1C', paved: '#10121C', bare: '#14121A', water: '#061A2E',
+    minor: '#151826', casing: '#00B8D4', major: '#0C0E18', majorCasing: '#FF2BD6', lane: '#00E5FF',
+    bldgLo: '#1A1238', bldgHi: '#5B2BB5', deck: '#1E2240', pillar: '#2A2F55', shopLo: '#3A0F4A', shopHi: '#B01FD0',
+    signal: '#FF2B55', signalRing: '#000000', route: '#39FF14', routeCasing: '#0B5E00', ring: '#00E5FF', car: '#00E5FF',
+    ui: 0xFF05060B,
+  );
+
+  /// Soft toy-town colours: mint ground, white streets, pastel buildings, orange route.
+  static const toy = MapPalette(
+    ground: '#E3F1DA', green: '#9EDB8C', pitch: '#86D17A', paved: '#D9D4C7', bare: '#F1DDB0', water: '#7FD3F7',
+    minor: '#FFFFFF', casing: '#C2C9B8', major: '#5B6173', majorCasing: '#FFFFFF', lane: '#FFFFFF',
+    bldgLo: '#F4E9DC', bldgHi: '#E9D8C4', deck: '#C3C8D6', pillar: '#A5ABBC', shopLo: '#FF8FA3', shopHi: '#FFB3C1',
+    signal: '#FF3B30', signalRing: '#FFFFFF', route: '#FF7A00', routeCasing: '#B34700', ring: '#FFFFFF', car: '#2F80ED',
+    bldgMix: ['#FFB3BA', '#FFDFBA', '#FFF5BA', '#BAFFC9', '#BAE1FF', '#D7BAFF', '#FFFFFF', '#F6C6A8'],
+    ui: 0xFFE3F1DA,
+  );
+
+  static MapPalette of(MapTheme t) => switch (t) {
+        MapTheme.night => night,
+        MapTheme.day => day,
+        MapTheme.game => game,
+        MapTheme.neon => neon,
+        MapTheme.toy => toy,
+      };
 }
 
 /// The style starts with only a background; everything else is our own data.
@@ -107,38 +144,31 @@ List<List<double>> _box(Vec c, double t, double x0, double y0, double x1, double
 Map<String, dynamic> _ext(List<List<double>> ring, double b, double t, String color) =>
     {'type': 'Feature', 'properties': {'b': b, 't': t, 'c': color}, 'geometry': {'type': 'Polygon', 'coordinates': [ring]}};
 
-/// Adds the whole city in the chosen look: parks, streets with lane markings,
-/// flyover decks and pillars, 3D buildings, traffic lights, the route and the
-/// car. Returns the traffic-light positions (the game look animates them).
+/// Adds the city in the chosen look: main streets with lane markings, flyover
+/// decks and pillars, traffic lights, the route and the car. Buildings, small
+/// streets and parks start empty and are filled from tiles around the car
+/// (see CityTiles). Road signs are added afterwards by [addSignLayers].
+/// Returns the traffic-light positions (the game looks animate them).
 Future<List<List<double>>> addCityLayers(MapLibreMapController c, RouteData route, {MapTheme theme = MapTheme.night}) async {
   final pal = MapPalette.of(theme);
-  final game = theme == MapTheme.game;
+  final game = theme.arcade;
   final ground = await _asset('ground.json');
   final bridges = await _asset('bridges.json');
-  final buildings = await _asset('buildings.json');
   final signalPts = [
     for (final f in (ground['signals']['features'] as List))
       [((f['geometry']['coordinates'] as List)[0] as num).toDouble(), ((f['geometry']['coordinates'] as List)[1] as num).toDouble()],
   ];
-  if (pal.bldgMix != null) {
-    final fs = buildings['features'] as List;
-    for (var i = 0; i < fs.length; i++) {
-      (fs[i]['properties'] as Map)['v'] = (i * 7 + (i ~/ 3)) % pal.bldgMix!.length; // neighbours get different colours
-    }
-  }
-
-  await c.addGeoJsonSource('areas', ground['areas'] as Map<String, dynamic>);
+  await c.addGeoJsonSource('areas', _empty);
+  await c.addGeoJsonSource('roads-local', _empty);
   await c.addGeoJsonSource('roads', ground['roads'] as Map<String, dynamic>);
   await c.addGeoJsonSource('decks', bridges['decks'] as Map<String, dynamic>);
   await c.addGeoJsonSource('pillars', bridges['pillars'] as Map<String, dynamic>);
-  await c.addGeoJsonSource('buildings', buildings);
+  await c.addGeoJsonSource('buildings', _empty);
   await c.addGeoJsonSource('signals', ground['signals'] as Map<String, dynamic>);
   await c.addGeoJsonSource('route-ground', routeGroundGeoJson(route));
   await c.addGeoJsonSource('route-ribbon', routeRibbonGeoJson(route));
   await c.addGeoJsonSource('route-alts', _empty);
   await c.addGeoJsonSource('route-traffic', _empty);
-  final signs = await _asset('signs.json');
-  await c.addGeoJsonSource('signs', signs['signs'] as Map<String, dynamic>);
   await c.addGeoJsonSource('me', _empty);
   await c.addGeoJsonSource('puck', _empty);
   if (game) {
@@ -149,6 +179,13 @@ Future<List<List<double>>> addCityLayers(MapLibreMapController c, RouteData rout
   await c.addFillLayer('areas', 'areas', FillLayerProperties(fillColor: [
     'match', ['get', 'k'], 'pitch', pal.pitch, 'paved', pal.paved, 'bare', pal.bare, 'water', pal.water, pal.green,
   ]));
+  // small streets from the tiles around the car, under the main roads
+  await c.addLineLayer('roads-local', 'local-casing', LineLayerProperties(
+    lineColor: pal.casing, lineWidth: metres(['+', _roadW, game ? 1.2 : 1.6]), lineCap: 'round', lineJoin: 'round',
+  ), filter: ['!=', ['get', 'c'], 'service']);
+  await c.addLineLayer('roads-local', 'local-road', LineLayerProperties(
+    lineColor: pal.minor, lineWidth: metres(_roadW), lineCap: 'round', lineJoin: 'round',
+  ), filter: ['!=', ['get', 'c'], 'service']);
   await c.addLineLayer('roads', 'road-casing', LineLayerProperties(
     lineColor: ['match', ['get', 'c'], ['major', 'medium', 'link'], pal.majorCasing, pal.casing],
     lineWidth: metres(['+', _roadW, game ? 1.2 : 1.6]), lineCap: 'round', lineJoin: 'round',
@@ -170,7 +207,7 @@ Future<List<List<double>>> addCityLayers(MapLibreMapController c, RouteData rout
   }
   // other route choices while the driver picks one
   await c.addLineLayer('route-alts', 'route-alts', LineLayerProperties(
-      lineColor: theme == MapTheme.day ? '#8E9AAD' : '#7D8AA0', lineWidth: metres(5), lineOpacity: 0.75, lineCap: 'round', lineJoin: 'round'));
+      lineColor: theme == MapTheme.day || theme == MapTheme.toy ? '#8E9AAD' : '#7D8AA0', lineWidth: metres(5), lineOpacity: 0.75, lineCap: 'round', lineJoin: 'round'));
   if (game) {
     await c.addLineLayer('route-ground', 'route-glow', LineLayerProperties(
         lineColor: pal.route, lineWidth: metres(16), lineBlur: metres(8), lineOpacity: 0.45, lineCap: 'round', lineJoin: 'round'));
@@ -204,7 +241,7 @@ Future<List<List<double>>> addCityLayers(MapLibreMapController c, RouteData rout
       if (mix != null) ['match', ['get', 'v'], for (var i = 0; i < mix.length; i++) ...[i, mix[i]], mix.first]
       else ['interpolate', ['linear'], ['get', 'h'], 4, pal.bldgLo, 40, pal.bldgHi],
     ],
-    fillExtrusionHeight: ['get', 'h'], fillExtrusionBase: 0, fillExtrusionOpacity: game ? 1.0 : 0.9,
+    fillExtrusionHeight: ['get', 'h'], fillExtrusionBase: 0, fillExtrusionOpacity: game ? 0.97 : 0.9,
   ));
   if (game) {
     // 3D traffic lights: pole, housing and a lamp that cycles green, amber, red
@@ -218,7 +255,6 @@ Future<List<List<double>>> addCityLayers(MapLibreMapController c, RouteData rout
       circleStrokeColor: pal.signalRing, circleStrokeWidth: 1.5, circlePitchAlignment: 'map',
     ), minzoom: 14);
   }
-  await _addSignLayers(c, signs, theme);
   // "my location" dot (used when the car on screen is the simulation)
   await c.addCircleLayer('me', 'me-acc', const CircleLayerProperties(
       circleColor: '#4C8DFF', circleOpacity: 0.18, circleRadius: ['max', 10, ['get', 'r']], circlePitchAlignment: 'map'));
@@ -231,8 +267,21 @@ Future<List<List<double>>> addCityLayers(MapLibreMapController c, RouteData rout
 
 const _empty = {'type': 'FeatureCollection', 'features': <dynamic>[]};
 
-/// Road signs standing beside the road (they always face the camera).
-Future<void> _addSignLayers(MapLibreMapController c, Map<String, dynamic> signs, MapTheme theme) async {
+/// The road signs on the map, and which street-name plates have been drawn.
+class SignSet {
+  SignSet(this.feats, this.names);
+  final List<dynamic> feats;
+  final List<dynamic> names;
+  final Set<int> drawn = {};
+}
+
+/// Road signs standing beside the road (they always face the camera). Called
+/// after the map is showing. Street-name plates are drawn only for the streets
+/// around the car ([drawNamePlates]): all 500+ at once would take seconds and
+/// about 100 MB of graphics memory.
+Future<SignSet> addSignLayers(MapLibreMapController c, MapTheme theme) async {
+  final signs = await _asset('signs.json');
+  await c.addGeoJsonSource('signs', signs['signs'] as Map<String, dynamic>);
   final feats = (signs['signs']['features'] as List);
   final kinds = <String>{for (final f in feats) f['properties']['k'] as String};
   for (final k in kinds) {
@@ -249,20 +298,32 @@ Future<void> _addSignLayers(MapLibreMapController c, Map<String, dynamic> signs,
           };
     if (png != null) await c.addImage(k, png);
   }
-  final names = (signs['names'] as List);
-  for (var i = 0; i < names.length; i++) {
-    await c.addImage('name-$i', await SignIcons.name(i, names[i][0] as String, names[i][1] as String));
-  }
   const size = ['interpolate', ['linear'], ['zoom'], 15, 0.32, 17, 0.5, 19, 0.8];
   await c.addSymbolLayer('signs', 'road-signs', SymbolLayerProperties(
     iconImage: const ['get', 'k'], iconSize: size, iconAnchor: 'bottom', iconAllowOverlap: true, iconIgnorePlacement: true,
-  ), minzoom: 15, filter: [
+  ), minzoom: 15, belowLayerId: 'me-acc', filter: [
     'all', ['!=', ['get', 'k'], 'name'],
-    if (theme == MapTheme.game) ['!=', ['get', 'k'], 'signal'] else true, // the game look has 3D lights
+    if (theme.arcade) ['!=', ['get', 'k'], 'signal'] else true, // game looks have 3D lights
   ]);
   await c.addSymbolLayer('signs', 'street-names', const SymbolLayerProperties(
     iconImage: ['concat', 'name-', ['to-string', ['get', 'ni']]], iconSize: size, iconAnchor: 'bottom', iconPadding: 4,
-  ), minzoom: 15.5, filter: ['==', ['get', 'k'], 'name']);
+  ), minzoom: 15.5, belowLayerId: 'me-acc', filter: ['==', ['get', 'k'], 'name']);
+  return SignSet(feats, signs['names'] as List);
+}
+
+/// Draws the street-name plates for streets inside [box] (west, south, east, north).
+Future<void> drawNamePlates(MapLibreMapController c, SignSet s, List<double> box) async {
+  for (final f in s.feats) {
+    final p = f['properties'] as Map;
+    if (p['k'] != 'name') continue;
+    final i = (p['ni'] as num).toInt();
+    if (s.drawn.contains(i)) continue;
+    final xy = f['geometry']['coordinates'] as List;
+    final lon = (xy[0] as num).toDouble(), lat = (xy[1] as num).toDouble();
+    if (lon < box[0] || lat < box[1] || lon > box[2] || lat > box[3]) continue;
+    s.drawn.add(i);
+    await c.addImage('name-$i', await SignIcons.name(i, s.names[i][0] as String, s.names[i][1] as String));
+  }
 }
 
 /// The planned route on the ground (flat line).
@@ -348,7 +409,7 @@ Map<String, dynamic> puckGeoJson(double lon, double lat, double heading, double 
   }
 
   final base = height > 0.3 ? height + 0.25 : 0.05;
-  if (theme == MapTheme.game) {
+  if (theme.arcade) {
     // about 1.8x real size: body, glass cabin, roof, wheels, headlights, tail lights
     const k = 1.8;
     List<List<double>> b(double x0, double y0, double x1, double y1) => _box(c, t, x0 * k, y0 * k, x1 * k, y1 * k);

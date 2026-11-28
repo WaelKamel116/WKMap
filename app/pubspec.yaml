@@ -66,6 +66,7 @@ flutter:
 
   assets:
     - assets/data/
+    - assets/data/tiles/
 
   # To add assets to your application, add an assets section, like this:
   # assets:
