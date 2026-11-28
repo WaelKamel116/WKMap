@@ -31,6 +31,16 @@ Proves the core idea on a real phone: **is the car up on the flyover or on the r
   - Marked crossings and traffic lights.
   - Blue street-name plates in Arabic and English.
 - **Smooth car**: each GPS fix is snapped to the matched road (or the flyover deck when the detector says so). The car glides between fixes at 20 frames a second instead of jumping once a second.
+- **Position**:
+  - **Path matching:** the road is picked from the recent path through the road network (hidden Markov model), not just the nearest road to each fix. Noisy fixes no longer pull the car onto a parallel service road or the road under a flyover, one-way roads are respected, and junctions are followed.
+    - Simulated 5 m GPS error: wrong road 1.4 % vs 8.6 % (El Nasr Road) and 1.7 % vs 3.4 % (City Stars to Cairo Festival City), compared with nearest-road snapping.
+    - The car is placed on the road only when it is within GPS error of it, so small side streets (not in the matching data) keep the raw GPS position.
+  - **Between fixes:** on a matched road the car moves along the road's own curve; if GPS drops out (under a flyover) it keeps following the road for up to 8 s.
+  - **Gyroscope:** gives the heading between fixes off the main roads.
+    - It works at any mounting angle, because the rotation is measured around the gravity direction.
+    - The sensor offset is learned while stopped, and the turn direction is confirmed against 3 GPS turns before it is used.
+    - Test tools shows GYRO learning or on, and the matched road.
+  - Logged in trip.csv as `yaw` rows (`yaw_dps`, degrees per second clockwise).
 - **Road width**: drawn at true scale from lane counts (3.3 m per lane). An earlier scale bug drew every road at half its width.
 
 ### Replaying a real drive

@@ -15,6 +15,7 @@ import '../map/city_tiles.dart';
 import '../map/map_layers.dart';
 import '../nav/car_smoother.dart';
 import '../nav/level_detector.dart';
+import '../nav/map_matcher.dart';
 import '../nav/match_data.dart';
 import '../nav/route_data.dart';
 import '../nav/routing.dart';
@@ -71,6 +72,7 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
 
   // smooth car: snapped to the road and moved 20 times a second
   final _smooth = CarSmoother();
+  MapMatcher? _matcher;
   Timer? _frame;
   DateTime _lastFrame = DateTime.now();
   bool _frameBusy = false;
@@ -134,6 +136,7 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
     final detector = _route == null ? null : LevelDetector(_detector!.data);
     final source = live ? LiveSource() : SimulatedSource(_route!);
     _smooth.reset();
+    _matcher = null;
     setState(() {
       _live = live;
       _source = source;
@@ -159,10 +162,13 @@ class _DriveScreenState extends State<DriveScreen> with WidgetsBindingObserver {
         _logger.decision(p.time, e);
         _lastPos = p;
         final xy = Geo.toXY(p.lon, p.lat);
-        final snap = CarSmoother.snapTarget(d.data, xy, p.accuracy, p.speed, p.heading, e.onFlyover);
-        _smooth.addFix(xy, speed: p.speed, gpsHeading: p.heading, deckHeight: e.onFlyover ? (e.mapHeight ?? 0) : 0, snap: snap);
-        _trackProgress(snap?.point ?? xy);
+        _matcher ??= MapMatcher(d.data);
+        final match = _matcher!.update(xy, accuracy: p.accuracy, speed: p.speed, heading: p.heading, onFlyover: e.onFlyover);
+        _smooth.addFix(xy, speed: p.speed, gpsHeading: p.heading, deckHeight: e.onFlyover ? (e.mapHeight ?? 0) : 0, match: match);
+        _trackProgress(match?.point ?? xy);
         setState(() => _est = e);
+      case YawSample y:
+        _smooth.addYaw(y.dps, y.dt);
     }
   }
 
@@ -1254,6 +1260,17 @@ class _ToolsSheetState extends State<_ToolsSheet> {
             Expanded(child: stat(h._lastPressure == null ? 'none' : h._lastPressure!.toStringAsFixed(2), 'HPA')),
             Expanded(child: stat(e?.baroHeight == null ? '—' : '${e!.baroHeight!.toStringAsFixed(1)} m', 'BARO HEIGHT')),
             Expanded(child: stat(e == null ? '—' : '${(e.confidence * 100).round()}%', 'CONFIDENCE')),
+          ]),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(
+                child: stat(
+                    h._smooth.gyro.trusted ? 'on' : (h._live ? 'learning' : 'simulated'), 'GYRO (offset ${h._smooth.gyro.bias.toStringAsFixed(1)}°/s)')),
+            Expanded(
+              flex: 3,
+              child: stat(h._matcher?.current == null ? 'off main roads' : (h._matcher!.current!.line.name.isEmpty ? 'unnamed road' : h._matcher!.current!.line.name),
+                  'MATCHED ROAD'),
+            ),
           ]),
           const SizedBox(height: 8),
           Text(

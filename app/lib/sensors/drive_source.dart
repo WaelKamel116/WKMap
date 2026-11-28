@@ -23,6 +23,13 @@ class PressureSample extends DriveSample {
   const PressureSample(super.time, this.hPa);
 }
 
+/// Turn rate about the vertical, degrees per second, clockwise like a compass,
+/// averaged over [dt] seconds (from the gyroscope, whatever way the phone is mounted).
+class YawSample extends DriveSample {
+  final double dps, dt;
+  const YawSample(super.time, this.dps, this.dt);
+}
+
 /// Something that produces drive samples: live sensors or the simulator.
 abstract class DriveSource {
   Stream<DriveSample> get samples;
@@ -37,7 +44,14 @@ class LiveSource implements DriveSource {
   final _ctrl = StreamController<DriveSample>.broadcast();
   StreamSubscription<Position>? _gps;
   StreamSubscription<BarometerEvent>? _baro;
+  StreamSubscription<AccelerometerEvent>? _acc;
+  StreamSubscription<GyroscopeEvent>? _gyro;
   bool barometerAvailable = true;
+
+  // gravity direction (low-pass accelerometer) and the yaw rate collected for the next sample
+  double _gx = 0, _gy = 0, _gz = 9.8;
+  double _yawSum = 0;
+  DateTime? _gyroAt, _yawFrom;
   String? problem;
 
   @override
@@ -88,14 +102,48 @@ class LiveSource implements DriveSource {
       },
       cancelOnError: true,
     );
+    // gyroscope turn rate about the vertical: the phone can be mounted at any angle, so
+    // project the rotation onto the gravity direction (accelerometer, low-pass filtered)
+    _acc = accelerometerEventStream(samplingPeriod: SensorInterval.gameInterval).listen((e) {
+      _gx += 0.05 * (e.x - _gx);
+      _gy += 0.05 * (e.y - _gy);
+      _gz += 0.05 * (e.z - _gz);
+    }, onError: (Object _) {}, cancelOnError: true);
+    _gyro = gyroscopeEventStream(samplingPeriod: SensorInterval.gameInterval).listen((e) {
+      final now = e.timestamp;
+      final last = _gyroAt;
+      _gyroAt = now;
+      _yawFrom ??= now;
+      if (last == null) return;
+      final dt = now.difference(last).inMicroseconds / 1e6;
+      if (dt <= 0 || dt > 0.5) return;
+      final g = math.sqrt(_gx * _gx + _gy * _gy + _gz * _gz);
+      if (g < 5) return;
+      // accelerometer points up at rest; rotation counter-clockwise about "up" is positive,
+      // compass heading turns clockwise, hence the minus
+      final ccw = (e.x * _gx + e.y * _gy + e.z * _gz) / g;
+      _yawSum += -ccw * 180 / math.pi * dt;
+      final span = now.difference(_yawFrom!).inMicroseconds / 1e6;
+      if (span >= 0.1) {
+        _ctrl.add(YawSample(now, _yawSum / span, span));
+        _yawSum = 0;
+        _yawFrom = now;
+      }
+    }, onError: (Object _) {}, cancelOnError: true);
   }
 
   @override
   Future<void> stop() async {
     await _gps?.cancel();
     await _baro?.cancel();
+    await _acc?.cancel();
+    await _gyro?.cancel();
     _gps = null;
     _baro = null;
+    _acc = null;
+    _gyro = null;
+    _gyroAt = null;
+    _yawFrom = null;
   }
 }
 
@@ -112,6 +160,7 @@ class SimulatedSource implements DriveSource {
   Timer? _timer;
   final _rnd = math.Random(7);
   int _tick = 0;
+  double? _lastHeading;
 
   @override
   String get label => 'Simulated drive';
@@ -135,6 +184,13 @@ class SimulatedSource implements DriveSource {
       final now = DateTime.now();
       // weather drift is ignored over a few minutes; sensor noise ~0.03 hPa (about 25 cm)
       _ctrl.add(PressureSample(now, 1012.6 - p.height / 8.4 + _gauss() * 0.03));
+      // gyroscope: true turn rate plus noise and a small constant offset, like a real sensor
+      final h = p.heading;
+      if (_lastHeading != null) {
+        final turn = ((h - _lastHeading! + 540) % 360) - 180;
+        _ctrl.add(YawSample(now, turn / 0.1 + _gauss() * 0.4 + 0.6, 0.1));
+      }
+      _lastHeading = h;
       if (_tick++ % 10 == 0) {
         // GPS: 3-5 m horizontal error, which is why it cannot tell the levels apart on its own
         final eLon = _gauss() * 4 / 96400, eLat = _gauss() * 4 / 110540;

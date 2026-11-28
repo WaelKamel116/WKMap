@@ -40,7 +40,7 @@ class TripLogger {
     file = dir != null ? File('${dir.path}/trip.csv') : File('${(await tripsDir()).path}/trip_${stamp()}.csv');
     _sink = file!.openWrite();
     _sink!.writeln('# source=$source');
-    _sink!.writeln('t_ms,kind,lon,lat,accuracy_m,speed_mps,heading_deg,gps_alt_m,pressure_hpa,level,confidence,baro_h_m,deck_h_m,road');
+    _sink!.writeln('t_ms,kind,lon,lat,accuracy_m,speed_mps,heading_deg,gps_alt_m,pressure_hpa,level,confidence,baro_h_m,deck_h_m,road,yaw_dps');
     rows = 0;
   }
 
@@ -54,6 +54,8 @@ class TripLogger {
             '${p.speed.toStringAsFixed(2)},${p.heading.toStringAsFixed(1)},${p.altitude.toStringAsFixed(1)},,,,,,');
       case PressureSample b:
         k.writeln('$t,baro,,,,,,,${b.hPa.toStringAsFixed(4)},,,,,');
+      case YawSample y:
+        k.writeln('$t,yaw,,,,,,,,,,,,,${y.dps.toStringAsFixed(2)}');
     }
     rows++;
   }

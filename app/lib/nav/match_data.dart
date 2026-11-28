@@ -10,7 +10,39 @@ class MatchLine {
   /// Deck height in metres at each vertex (all zeros for ground roads).
   final List<double> heights;
 
-  MatchLine(this.name, this.oneway, this.isBridge, this.pts, this.heights);
+  /// Distance along the line at each vertex, metres.
+  final List<double> cum;
+
+  MatchLine(this.name, this.oneway, this.isBridge, this.pts, this.heights) : cum = _cumulative(pts);
+
+  static List<double> _cumulative(List<Vec> pts) {
+    final out = <double>[0];
+    for (var i = 1; i < pts.length; i++) {
+      out.add(out.last + (pts[i] - pts[i - 1]).length);
+    }
+    return out;
+  }
+
+  double get length => cum.last;
+
+  /// Point and drawing-direction bearing at [s] metres along the line (clamped to the line).
+  (Vec, double) at(double s) {
+    s = s.clamp(0.0, length);
+    var i = 0;
+    while (i < pts.length - 2 && cum[i + 1] < s) {
+      i++;
+    }
+    final segLen = cum[i + 1] - cum[i];
+    final t = segLen == 0 ? 0.0 : (s - cum[i]) / segLen;
+    return (pts[i] + (pts[i + 1] - pts[i]) * t, Geo.bearing(pts[i], pts[i + 1]));
+  }
+}
+
+/// Where two roads meet: [sThis] metres along this line, [sOther] along the other.
+class Junction {
+  const Junction(this.other, this.sThis, this.sOther);
+  final int other;
+  final double sThis, sOther;
 }
 
 /// Flyover and ground-road geometry, plus a coarse grid index so a lookup
@@ -19,6 +51,29 @@ class MatchData {
   final List<MatchLine> lines;
   final Map<int, List<_SegRef>> _grid = {};
   static const double cell = 60; // metres
+
+  /// For each line, the junctions with other lines (shared OpenStreetMap nodes).
+  late final List<List<Junction>> junctions = _junctions();
+
+  List<List<Junction>> _junctions() {
+    final at = <String, List<(int, double)>>{};
+    for (var li = 0; li < lines.length; li++) {
+      final l = lines[li];
+      for (var i = 0; i < l.pts.length; i++) {
+        (at['${(l.pts[i].x * 2).round()},${(l.pts[i].y * 2).round()}'] ??= []).add((li, l.cum[i]));
+      }
+    }
+    final out = List.generate(lines.length, (_) => <Junction>[]);
+    for (final shared in at.values) {
+      if (shared.length < 2) continue;
+      for (final a in shared) {
+        for (final b in shared) {
+          if (a.$1 != b.$1) out[a.$1].add(Junction(b.$1, a.$2, b.$2));
+        }
+      }
+    }
+    return out;
+  }
 
   MatchData(this.lines) {
     for (var li = 0; li < lines.length; li++) {
@@ -70,7 +125,8 @@ class MatchData {
         if (!ok) continue;
       }
       final h = l.heights[ref.seg] + (l.heights[ref.seg + 1] - l.heights[ref.seg]) * hit.t;
-      out.add(Candidate(l, hit.distance, h, hit.point, hit.bearing));
+      out.add(Candidate(l, hit.distance, h, hit.point, hit.bearing,
+          lineIndex: ref.line, s: l.cum[ref.seg] + (l.cum[ref.seg + 1] - l.cum[ref.seg]) * hit.t));
     }
     out.sort((a, b) => a.distance.compareTo(b.distance));
     return out;
@@ -88,5 +144,7 @@ class Candidate {
   final double height; // deck height at the matched point (0 on the ground)
   final Vec point; // the matched point on the road centreline
   final double bearing; // direction of the road segment (drawing direction)
-  const Candidate(this.line, this.distance, this.height, this.point, this.bearing);
+  final int lineIndex; // index in MatchData.lines
+  final double s; // metres along the line
+  const Candidate(this.line, this.distance, this.height, this.point, this.bearing, {this.lineIndex = -1, this.s = 0});
 }
